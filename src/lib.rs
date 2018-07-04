@@ -1,13 +1,14 @@
 extern crate num;
 extern crate num_complex;
 extern crate black_scholes;
+//extern crate num_traits;
 extern crate rayon;
 #[macro_use]
 #[cfg(test)]
 extern crate approx;
 use num_complex::Complex;
-
-use num::traits::{Zero};
+use num::Float;
+use num::traits::{Zero, NumOps, Num};
 use std::f64::consts::PI;
 use rayon::prelude::*;
 
@@ -115,6 +116,13 @@ fn convolute<T>(cf_incr:f64, x:f64, u:f64, u_index:usize, vk:T)->f64
     cf_incr*vk(u, x, u_index)
 }
 
+fn adjust_index_cmpl(element:&Complex<f64>, index:usize)->Complex<f64>
+{
+    if index==0{element*0.5} else {*element}
+}
+fn adjust_index_fl(element:&f64, index:usize)->f64{
+    if index==0 {element*0.5} else{*element}
+}
 
 /**used when aggregating log cfs and then having to invert the results
     @xMin min of real plane
@@ -184,7 +192,7 @@ fn compute_convolution_levy<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_
     (0..x_discrete).into_par_iter().map(|x_index|{
         let x=get_x(x_min, dx, x_index);
         discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-            let cf_incr_m=if index==0{cf_incr*0.5} else {cf_incr};
+            let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
             s+convolute_levy(&cf_incr_m, x, get_u(du, index), index, vk)
         })
     }).collect()
@@ -202,7 +210,7 @@ fn compute_convolution_vec_levy_g<T, S>(x_values:&Vec<f64>, discrete_cf:&Vec<Com
     x_values.par_iter().enumerate().map(|(x_index, &x_value)|{
         extra_fn(
             discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-                let cf_incr_m=if index==0{cf_incr*0.5} else {cf_incr};
+                let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
                 s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, vk)
             }),
             x_value,
@@ -222,7 +230,7 @@ fn compute_convolution_at_point_levy<T>(x_value:f64, x_min:f64, x_max:f64, discr
 {
     let du=compute_du(x_min, x_max);
     discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-        let cf_incr_m=if index==0{cf_incr*0.5} else {cf_incr};
+        let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
         s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, vk)
     })
 }
@@ -247,7 +255,7 @@ fn compute_convolution<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:&V
     (0..x_discrete).into_par_iter().map(|x_index|{
         let x=get_x(x_min, dx, x_index);
         discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-            let cf_incr_m=if index==0{cf_incr*0.5} else {cf_incr};
+            let cf_incr_m=adjust_index_fl(&cf_incr, index);
             s+convolute(cf_incr_m, x, get_u(du, index), index, vk)
         })
     }).collect()
@@ -262,7 +270,7 @@ fn compute_convolution_vec<T>(x_values:&Vec<f64>, discrete_cf:&Vec<f64>,  vk:T)-
     let du=compute_du(x_min, x_max);
     x_values.par_iter().map(|&x_value|{
         discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-            let cf_incr_m=if index==0{cf_incr*0.5} else {cf_incr};
+            let cf_incr_m=adjust_index_fl(&cf_incr, index);
             s+convolute(cf_incr_m, x_value, get_u(du, index), index, vk)
         })
     }).collect()
@@ -278,7 +286,7 @@ fn compute_convolution_at_point<T>(
 {
     let du=compute_du(x_min, x_max);
     discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-        let cf_incr_m=if index==0{cf_incr*0.5} else {cf_incr};
+        let cf_incr_m=adjust_index_fl(&cf_incr, index);
         s+convolute(cf_incr_m, x_value, get_u(du, index), index, vk)
     })
 }
