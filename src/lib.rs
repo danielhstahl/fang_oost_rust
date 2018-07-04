@@ -95,6 +95,22 @@ fn adjust_index_cmpl(element:&Complex<f64>, index:usize)->Complex<f64>
     if index==0{element*0.5} else {*element}
 }
 
+pub fn get_discrete_cf<T>(
+    num_u:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv:T
+)->Vec<Complex<f64>>
+where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+{
+    let du=compute_du(x_min, x_max);
+    let cp=compute_cp(du);
+    (0..num_u).into_par_iter().map(|index|{
+        let u=get_complex_u(get_u(du, index));
+        fn_inv(&u)*(-u*x_min).exp()*cp //potentially expensive...want to perform this once...which means that we then need to actually make this into a vector not an iterator.  
+    }).collect()
+}
+
 //everything is an expectation in some sense
 pub fn get_expectation_x<T, U>(
     num_x:usize,
@@ -111,17 +127,17 @@ pub fn get_expectation_x<T, U>(
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
     //get discrete cf
-    let cf_discrete=(0..num_u).into_par_iter().map(|index|{
-        let u=get_complex_u(get_u(du, index));
-        fn_inv(&u)*(-u*x_min).exp()*cp
-    });
+    let cf_discrete=get_discrete_cf(
+        num_u, 
+        x_min, x_max, fn_inv
+    );
     //for every x, iterate over discrete cf
     (0..num_x).into_par_iter().map(|x_index|{
         let x=get_x(x_min, dx, x_index);
-        cf_discrete.enumerate().fold(||f64::zero(), |s, (index, cf_incr)|{
+        cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
             let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
             s+convolute(&cf_incr_m, x, get_u(du, index), index, &vk)
-        }).sum()
+        })
     }).collect()
 }
 pub fn get_expectation_discrete<T, U>(
@@ -133,21 +149,21 @@ pub fn get_expectation_discrete<T, U>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let x_max=x.last().unwrap();
-    let x_min=x.first().unwrap();
-    let du=compute_du(*x_min, *x_max);
+    let x_max=*x.last().unwrap();
+    let x_min=*x.first().unwrap();
+    let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
     //get discrete cf
-    let cf_discrete=(0..num_u).into_par_iter().map(|index|{
-        let u=get_complex_u(get_u(du, index));
-        fn_inv(&u)*(-u*x_min).exp()*cp
-    });
+    let cf_discrete=get_discrete_cf(
+        num_u, 
+        x_min, x_max, fn_inv
+    );
     //for every x, iterate over discrete cf
     x.par_iter().map(|&x_value|{
-        cf_discrete.enumerate().fold(||f64::zero(), |s, (index, cf_incr)|{
+        cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
             let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
             s+convolute(&cf_incr_m, x_value, get_u(du, index), index, &vk)
-        }).sum()
+        })
     }).collect()
 }
 
@@ -163,7 +179,7 @@ pub fn get_density<T>(
         num_u, 
         &x, 
         fn_inv,
-        |u, x, k|(u*(x-x_min)).cos()
+        |u, x, _|(u*(x-x_min)).cos()
     )
 }
 
@@ -182,7 +198,7 @@ pub fn get_density_x<T>(
         x_min,
         x_max,
         fn_inv,
-        |u, x, k|(u*(x-x_min)).cos()
+        |u, x, _|(u*(x-x_min)).cos()
     )
 }
 
