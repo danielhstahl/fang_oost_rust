@@ -37,7 +37,7 @@ fn get_u(dx:f64, index:usize)->f64{
     @xMax the maximum of the X domain
     @return vector of discrete X values
 */
-fn compute_x_range(x_discrete:usize, x_min:f64, x_max:f64)->Vec<f64>{
+pub fn compute_x_range(x_discrete:usize, x_min:f64, x_max:f64)->Vec<f64>{
     let dx=compute_dx(x_discrete, x_min, x_max);
     (0..x_discrete).into_par_iter().map(|index| x_min+(index as f64)*dx).collect()
 }
@@ -131,7 +131,6 @@ pub fn get_expectation_generic_x<T, S>(
 {
     let dx=compute_dx(num_x, x_min, x_max);
     let du=compute_du(x_min, x_max);
-    let cp=compute_cp(du);
     //get discrete cf
     let cf_discrete=get_discrete_cf(
         num_u, 
@@ -159,7 +158,6 @@ pub fn get_expectation_generic_domain<T, S>(
     let x_max=*x.last().unwrap();
     let x_min=*x.first().unwrap();
     let du=compute_du(x_min, x_max);
-    let cp=compute_cp(du);
     //get discrete cf
     let cf_discrete=get_discrete_cf(
         num_u, 
@@ -355,7 +353,7 @@ pub fn get_density_x<T>(
 mod tests {
     use super::*;
     fn vk_cdf(
-        x:f64, u:f64, a:f64, b:f64, k:usize
+        x:f64, u:f64, a:f64, _b:f64, k:usize
     )->f64{
         if k==0{x-a} else { ((x-a)*u).sin()/u }
     }
