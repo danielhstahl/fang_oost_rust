@@ -71,25 +71,6 @@ fn compute_cp(du:f64)->f64{
 }
 
 /**
-    Helps convert CF into appropriate vector for inverting
-    @u Complex number.  Discretiziation of complex plane.  Can be computed by calling getU(du, index)
-    @xMin Minimum of real plane
-    @cp Size of integration in complex domain.  Can be computed by calling computeCP(du)
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-*/
-fn format_cf_real<T>(u:&Complex<f64>, x_min:f64, cp:f64, fn_inv:T)->f64
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
-{
-    (fn_inv(u)*(-u*x_min).exp()).re*cp
-}
-
-fn format_cf<T>(u:&Complex<f64>, x_min:f64, cp:f64, fn_inv:T)->Complex<f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
-{
-    (fn_inv(u)*(-u*x_min).exp())*cp
-}
-
-/**
     Helper function to get complex u
     @u The real valued complex component.  Can be computed using getU(du, index)
 */
@@ -102,609 +83,109 @@ Levy processes where log(S/K) changes
 for every iteration.  This is done 
 separately from the Characteristic
 Function for computation purposes.*/
-fn convolute_levy<T>(cf_incr:&Complex<f64>, x:f64, u:f64, u_index:usize, vk:T)->f64
+fn convolute<T>(cf_incr:&Complex<f64>, x:f64, u:f64, u_index:usize, vk:T)->f64
     where T:Fn(f64, f64, usize)->f64
 {
     (cf_incr*(get_complex_u(u)*x).exp()).re*vk(u, x, u_index)
 }
-//standard convolution in fouirer space (ie, multiplication)  */
-fn convolute<T>(cf_incr:f64, x:f64, u:f64, u_index:usize, vk:T)->f64
-    where T:Fn(f64, f64, usize)->f64
-{
-    cf_incr*vk(u, x, u_index)
-}
+
 
 fn adjust_index_cmpl(element:&Complex<f64>, index:usize)->Complex<f64>
 {
     if index==0{element*0.5} else {*element}
 }
-fn adjust_index_fl(element:&f64, index:usize)->f64{
-    if index==0 {element*0.5} else{*element}
-}
 
-/**used when aggregating log cfs and then having to invert the results
-    @xMin min of real plane
-    @xMax max of real plane
-    @logAndComplexCF vector of complex log values of a CF.  
-    @returns actual CF for inversion
-    Note that the exp(logAndComplex-u*xMin) is equivalent to 
-    the computation done in formatCFReal but with vector instead
-    of the function itself
-
-*/
-fn convert_log_cf_to_real_exp<'a, I,  K>(x_min:f64, x_max:f64, cf_vec:I)->Vec<f64>
-    where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send,
-{ 
-    let du=compute_du(x_min, x_max);
-    let cp=compute_cp(du);
-    cf_vec.enumerate().map(|(index, &x)|{
-        (x-get_complex_u(get_u(du, index))*x_min).exp().re*cp
-    }).collect()
-}
-
-/**return vector of complex elements of cf. 
-This is ONLY needed where the CF depends on 
-a changing "x": like for option pricing where 
-x=log(S/K) and K iterates  */
-fn compute_discrete_cf< T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<Complex<f64> >
-    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
-{
-    let du=compute_du(x_min, x_max);
-    let cp=compute_cp(du);
-    (0..u_discrete).into_par_iter().map(|index|{
-        let u=get_complex_u(get_u(du, index));
-        format_cf(&u, x_min, cp, &cf) //how is this not a type error??
-    }).collect()
-}
-/**return vector of real elements of cf. 
-This will work for nearly every type 
-of inversion EXCEPT where the CF depends on 
-a changing "x": like for option pricing where 
-x=log(S/K) and K iterates  */
-fn compute_discrete_cf_real<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<f64>
-    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
-{
-    let du=compute_du(x_min, x_max);
-    let cp=compute_cp(du);
-    (0..u_discrete).into_par_iter().map(|index|{
-        let u=get_complex_u(get_u(du, index));
-        format_cf_real(&u, x_min, cp, &cf)
-    }).collect()
-}
-
-
-
-
-/**
-    Computes the convolution given the discretized characteristic function.  
-    @xDiscrete Number of discrete points in density domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @discreteCF Discretized characteristic function.  This is vector of complex numbers.
-    @vK Function (parameters u and x, and index)  
-    @returns approximate convolution
-*/
-fn compute_convolution_levy<'a, I, T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:I, vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-    
-{ //vk as defined in fang oosterlee
-    let dx=compute_dx(x_discrete, x_min, x_max);
-    let du=compute_du(x_min, x_max);
-    (0..x_discrete).into_par_iter().map(|x_index|{
-        let x=get_x(x_min, dx, x_index);
-        discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-            let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-            s+convolute_levy(&cf_incr_m, x, get_u(du, index), index, &vk)
-        })
-    }).collect()
-}
-
-fn compute_convolution_vec_levy_g<'a, I, T, S>(x_values:&Vec<f64>, discrete_cf:I, vk:T, extra_fn:S)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send, 
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-{ //vk as defined in fang oosterlee
-    //let x_min:f64=x_values.first();
-    let x_min:f64=x_values[0];
-    //let x_max:f64=x_values.last();
-    let x_max:f64=x_values[x_values.len()-1];
-    let du=compute_du(x_min, x_max);
-    x_values.par_iter().enumerate().map(|(x_index, &x_value)|{
-        extra_fn(
-            discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-                let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-                s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, &vk)
-            }),
-            x_value,
-            x_index
-        )  
-    }).collect()
-}
-
-fn compute_convolution_vec_levy<'a, I, T>(x_values:&Vec<f64>, discrete_cf:I, vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_vec_levy_g(x_values, discrete_cf, vk, |v, _, _|v)
-}
-
-fn compute_convolution_at_point_levy<'a, I, T>(x_value:f64, x_min:f64, x_max:f64, discrete_cf:I, vk:T)->f64
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-{
-    let du=compute_du(x_min, x_max);
-    discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-        let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-        s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, &vk)
-    })
-}
-
-
-
-/**
-    Computes the convolution given the discretized characteristic function.  
-    @xDiscrete Number of discrete points in density domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @discreteCF Discretized characteristic function.  This is vector of complex numbers.
-    @vK Function (parameters u and x, and index)  
-    @returns approximate convolution
-*/
-
-fn compute_convolution<'a, I, T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:I, vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
-{
-    let dx=compute_dx(x_discrete, x_min, x_max);
-    let du=compute_du(x_min, x_max);
-    (0..x_discrete).into_par_iter().map(|x_index|{
-        let x=get_x(x_min, dx, x_index);
-        discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-            let cf_incr_m=adjust_index_fl(&cf_incr, index);
-            s+convolute(cf_incr_m, x, get_u(du, index), index, &vk)
-        })
-    }).collect()
-}
-
-
-fn compute_convolution_vec<'a, I, T>(
-    x_values:&Vec<f64>, 
-    discrete_cf:I,  vk:T
-)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
-{
-    let x_min=x_values[0];
-    let x_max=x_values[x_values.len()-1];
-    let du=compute_du(x_min, x_max);
-    x_values.par_iter().map(|&x_value|{
-        discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-            let cf_incr_m=adjust_index_fl(&cf_incr, index);
-            s+convolute(cf_incr_m, x_value, get_u(du, index), index, &vk)
-        })
-    }).collect()
-}
-
-fn compute_convolution_at_point<'a, I,T>(
-    x_value:f64, 
+//everything is an expectation in some sense
+pub fn get_expectation_x<T, U>(
+    num_x:usize,
+    num_u:usize,
     x_min:f64,
     x_max:f64,
-    discrete_cf:I,  
-    vk:T
-)->f64
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
-{
-    let du=compute_du(x_min, x_max);
-    discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
-        let cf_incr_m=adjust_index_fl(&cf_incr, index);
-        s+convolute(cf_incr_m, x_value, get_u(du, index), index, &vk)
-    })
-}
-
-
-
-/********
-    FROM HERE ON are the functions that should be used by external programs
-**/
-
-/**
-    Computes the density given a discretized characteristic function discreteCF (of size uDiscrete) at the discrete points xRange in xmin, xmax. See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @discreteCF vector of characteristic function of the density at discrete U
-    @returns approximate density
-*/
-pub fn compute_inv_discrete<'a, I>(
-    x_discrete: usize, x_min:f64, 
-    x_max:f64, discrete_cf:I
-)->Vec<f64>
-    where I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
-{
-    compute_convolution(x_discrete, x_min, x_max, discrete_cf, |u, x, _|{
-        (u*(x-x_min)).cos()
-    })
-}   
-/**
-    Computes the density given a characteristic function fnInv at the discrete points xRange in xmin, xmax. See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @uDiscrete Number of discrete points in the complex domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-    @returns approximate density
-*/
-
-pub fn compute_inv<T>(
-    x_discrete:usize, u_discrete:usize, 
-    x_min:f64, x_max:f64, fn_inv:T
-)->Vec<f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
-{
-    compute_inv_discrete(
-        x_discrete, x_min, x_max, 
-        compute_discrete_cf_real(
-            x_min, x_max, u_discrete, 
-            fn_inv 
-        )
-    )
-
-}
-
-/**
-    Computes the density given a log characteristic function at the discrete points xRange in xmin, xmax.  See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @logFnInv vector of log characteristic function of the density at discrete U 
-    @returns approximate density
-*/
-pub fn compute_inv_discrete_log<'a, I>(
-    x_discrete:usize, 
-    x_min:f64, x_max:f64, 
-    fn_inv_log:I
-)->Vec<f64>
-    where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-{
-    compute_inv_discrete(
-        x_discrete, x_min, x_max, 
-        convert_log_cf_to_real_exp( 
-            x_min, x_max, 
-            fn_inv_log
-        )
-    )
-}
-
-/**
-    Computes the expectation given a characteristic function fnInv at the discrete points xRange in xmin, xmax and functions of the expectation vK: E[f(vk)]. This is used if the CF is of a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @uDiscrete Number of discrete points in the complex domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-pub fn compute_expectation_levy<T, S>(
-    x_discrete:usize, u_discrete:usize, 
-    x_min:f64, x_max:f64, fn_inv:T, 
-    vk:S
-)->Vec<f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_levy(
-        x_discrete, x_min, x_max, 
-        compute_discrete_cf(
-            x_min, x_max, u_discrete,
-            fn_inv
-        ),
-        vk
-    )
-}
-
-
-/**
-    Computes the expectation given a discretized characteristic function discreteCF (of size uDiscrete) at the discrete points xRange in xmin, xmax and functions of the expectation vK: E[f(vk)]. This is used if the CF is of a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @uDiscrete Number of discrete points in the complex domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @discreteCF vector of characteristic function of the density at discrete U
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-pub fn compute_expectation_levy_discrete<'a, I, S>(
-    x_discrete:usize, x_min:f64, x_max:f64,
-    discrete_cf:I,
-    vk:S
-)->Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_levy(
-        x_discrete, x_min, x_max,
-        discrete_cf, vk
-    )
-}
-
-
- /**
-    Computes the expectation given a characteristic function fnInv at the discrete points xRange in xmin, xmax and functions of the expectation vK: E[f(vk)]. Only used for non-Levy processes.  See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @uDiscrete Number of discrete points in the complex domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-
-pub fn compute_expectation<T, S>(
-    x_discrete:usize,
-    u_discrete:usize,
-    x_min:f64, x_max:f64,
     fn_inv:T,
-    vk:S
+    vk:U
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
-{
-    compute_convolution(
-        x_discrete,
-        x_min, x_max,
-        compute_discrete_cf_real(
-            x_min, x_max,
-            u_discrete,
-            fn_inv
-        ),
-        vk
-    )
-}
-
-/**
-    Computes the expectation given a discretized characteristic function discreteCF (of size uDiscrete) at the discrete points xRange in xmin, xmax and functions of the expectation vK: E[f(vk)]. Only used for non-Levy processes.  See Fang Oosterlee (2007) for more information.
-    @xDiscrete Number of discrete points in density domain
-    @uDiscrete Number of discrete points in the complex domain
-    @xmin Minimum number in the density domain
-    @xmax Maximum number in the density domain
-    @discreteCF vector of characteristic function of the density at discrete U
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-
-pub fn compute_expectation_discrete<'a, I, S>(
-    x_discrete:usize,
-    x_min:f64, x_max:f64,
-    fn_inv:I, vk:S
-)->Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
-{
-    compute_convolution(
-        x_discrete,
-        x_min, x_max,
-        fn_inv, vk
-    )
-}
-
- /**
-    Computes the expectation given a characteristic function fnInv at the vector of discrete points xValues and functions of the expectation vK: E[f(vk)]. This is used if the CF is of a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xValues Array of x values to compute the function at.
-    @uDiscrete Number of discrete points in the complex domain
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @extraFn Function (parameters expectation, x, and index) to multiply result by.  If not provided, defaults to raw expectation.
-    @returns approximate expectation
-*/
-
-pub fn compute_expectation_vec_levy_g<T, S, U>(
-    x_values:&Vec<f64>,
-    u_discrete:usize,
-    fn_inv:T,
-    vk:S, extra_fn:U
-)->Vec<f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    compute_convolution_vec_levy_g(
-        x_values, 
-        compute_discrete_cf(
-            x_values[0],
-            x_values[x_values.len()-1],
-            u_discrete,
-            fn_inv
-        ),
-        vk, extra_fn
-    )
+    let dx=compute_dx(num_x, x_min, x_max);
+    let du=compute_du(x_min, x_max);
+    let cp=compute_cp(du);
+    //get discrete cf
+    let cf_discrete=(0..num_u).into_par_iter().map(|index|{
+        let u=get_complex_u(get_u(du, index));
+        fn_inv(&u)*(-u*x_min).exp()*cp
+    });
+    //for every x, iterate over discrete cf
+    (0..num_x).into_par_iter().map(|x_index|{
+        let x=get_x(x_min, dx, x_index);
+        cf_discrete.enumerate().fold(||f64::zero(), |s, (index, cf_incr)|{
+            let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
+            s+convolute(&cf_incr_m, x, get_u(du, index), index, &vk)
+        }).sum()
+    }).collect()
 }
-/**
-    Computes the expectation given a characteristic function fnInv at the vector of discrete points xValues and functions of the expectation vK: E[f(vk)]. This is used if the CF is of a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xValues Array of x values to compute the function at.
-    @uDiscrete Number of discrete points in the complex domain
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-
-pub fn compute_expectation_vec_levy<T, S>(
-    x_values:&Vec<f64>,
-    u_discrete:usize,
+pub fn get_expectation_discrete<T, U>(
+    num_u:usize,
+    x:&Vec<f64>,
     fn_inv:T,
-    vk:S
+    vk:U
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    compute_expectation_vec_levy_g(
-        x_values, 
-        u_discrete,
-        fn_inv, vk, |v, _, _|v
-    )
+    let x_max=x.last().unwrap();
+    let x_min=x.first().unwrap();
+    let du=compute_du(*x_min, *x_max);
+    let cp=compute_cp(du);
+    //get discrete cf
+    let cf_discrete=(0..num_u).into_par_iter().map(|index|{
+        let u=get_complex_u(get_u(du, index));
+        fn_inv(&u)*(-u*x_min).exp()*cp
+    });
+    //for every x, iterate over discrete cf
+    x.par_iter().map(|&x_value|{
+        cf_discrete.enumerate().fold(||f64::zero(), |s, (index, cf_incr)|{
+            let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
+            s+convolute(&cf_incr_m, x_value, get_u(du, index), index, &vk)
+        }).sum()
+    }).collect()
 }
 
- /**
-    Computes the expectation given a discretized characteristic function discreteCF (of size uDiscrete) at the vector of discrete points xValues and functions of the expectation vK: E[f(vk)]. This is used if the CF is of a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xValues x values to compute the function at.
-    @uDiscrete Number of discrete points in the complex domain
-    @discreteCF vector of characteristic function of the density at discrete U
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-pub fn compute_expectation_vec_levy_discrete<'a, I, S>(
-    x_values: &Vec<f64>,
-    discrete_cf:I,
-    vk:S
-)->Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_vec_levy(
-        x_values, discrete_cf, vk
-    )
-}
-
-/**
-    Computes the expectation given a characteristic function fnInv at the array of discrete points in xValues and functions of the expectation vK: E[f(vk)]. This is used if the CF is not for a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xValues Array of x values to compute the function at.
-    @uDiscrete Number of discrete points in the complex domain
-    @fnInv Characteristic function of the density.  May be computationally intense to compute (eg, if using the combined CF of millions of loans)
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-
-pub fn compute_expectation_vec<T, S>(
-    x_values:&Vec<f64>,
-    u_discrete:usize,
-    fn_inv:T, vk:S
+pub fn get_density<T>(
+    num_u:usize,
+    x:&Vec<f64>,
+    fn_inv:T
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    compute_convolution_vec(
-        x_values,
-        compute_discrete_cf_real(
-            x_values[0],
-            x_values[x_values.len()-1],
-            u_discrete,
-            fn_inv
-        ),
-        vk
+    let x_min=x.first().unwrap();
+    get_expectation_discrete(
+        num_u, 
+        &x, 
+        fn_inv,
+        |u, x, k|(u*(x-x_min)).cos()
     )
 }
 
-/**
-    Computes the expectation given a discretized characteristic function discreteCF (of size uDiscrete) at the discrete points in xValues and functions of the expectation vK: E[f(vk)]. This is used if the CF is not for a Levy process.  See Fang Oosterlee (2007) for more information.
-    @xValues x values to compute the function at.
-    @uDiscrete Number of discrete points in the complex domain
-    @discreteCF vector of characteristic function of the density at discrete U
-    @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
-    @returns approximate expectation
-*/
-pub fn compute_expectation_vec_discrete<'a, I, S>(
-    x_values:&Vec<f64>,
-    discrete_cf:I,
-    vk:S
-) -> Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_vec(
-        x_values, 
-        discrete_cf,
-        vk
-    )
-}
-
-pub fn compute_expectation_at_point_levy<T, S>(
-    x_value:f64,
+pub fn get_density_x<T>(
+    num_x:usize,
+    num_u:usize,
     x_min:f64,
     x_max:f64,
-    u_discrete:usize,
-    fn_inv:T,
-    vk:S
-) -> f64 
+    fn_inv:T
+)->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    compute_convolution_at_point_levy(
-        x_value,
-        x_min,
-        x_max,
-        compute_discrete_cf(
-            x_min,
-            x_max,
-            u_discrete,
-            fn_inv
-        ),
-        vk
-    )
-}
-
-pub fn compute_expectation_at_point_levy_discrete<'a, I, S>(
-    x_value:f64,
-    x_min:f64, 
-    x_max:f64,
-    fn_inv:I,
-    vk:S
-)->f64
-    where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_at_point_levy(
-        x_value,
+    get_expectation_x(
+        num_x,
+        num_u,
         x_min,
         x_max,
         fn_inv,
-        vk
+        |u, x, k|(u*(x-x_min)).cos()
     )
 }
 
-pub fn compute_expectation_at_point<T, S>(
-    x_value:f64,
-    x_min:f64,
-    x_max:f64,
-    u_discrete:usize,
-    fn_inv:T,
-    vk:S
-)->f64
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
-{
-
-    compute_convolution_at_point(
-        x_value,
-        x_min,
-        x_max,
-        compute_discrete_cf_real(
-            x_min, x_max,
-            u_discrete,
-            fn_inv
-        ),
-        vk
-    )
-}
-pub fn compute_expectation_at_point_discrete<'a, I, S>(
-    x_value:f64,
-    x_min:f64,
-    x_max:f64,
-    fn_inv:I,
-    vk:S
-)->f64
-    where I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send,
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
-{
-    compute_convolution_at_point(
-        x_value,
-        x_min, 
-        x_max,
-        fn_inv,
-        vk
-    )
-}
 
 
 
@@ -738,7 +219,7 @@ mod tests {
             (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
         
-        let my_inverse=compute_inv(num_x, num_u, x_min, x_max, norm_cf);
+        let my_inverse=get_density(num_x, num_u, x_min, x_max, norm_cf);
         
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
