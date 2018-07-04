@@ -118,21 +118,16 @@ where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 }
 
 
-pub fn get_expectation_generic_x<T, U, S>(
+pub fn get_expectation_generic_x<T, S>(
     num_x:usize,
     num_u:usize,
     x_min:f64,
     x_max:f64,
     fn_inv:T,
-    vk:U,
     convolute:S
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    S:Fn(
-        &Complex<f64>, f64, f64, usize, 
-        &U
-    )->f64+std::marker::Sync+std::marker::Send
+    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
     let dx=compute_dx(num_x, x_min, x_max);
     let du=compute_du(x_min, x_max);
@@ -147,23 +142,19 @@ pub fn get_expectation_generic_x<T, U, S>(
         let x=get_x(x_min, dx, x_index);
         cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
             let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-            s+convolute(&cf_incr_m, x, get_u(du, index), index, &vk)
+            //s+convolute(&cf_incr_m, x, get_u(du, index), index, &vk)
+            s+convolute(&cf_incr_m, x, get_u(du, index), index)
         })
     }).collect()
 }
-pub fn get_expectation_generic_domain<T, U, S>(
+pub fn get_expectation_generic_domain<T, S>(
     num_u:usize,
     x:&Vec<f64>,
     fn_inv:T,
-    vk:U,
     convolute:S
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
-    S:Fn(
-        &Complex<f64>, f64, f64, usize, 
-        &U
-    )->f64+std::marker::Sync+std::marker::Send
+    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
     let x_max=*x.last().unwrap();
     let x_min=*x.first().unwrap();
@@ -178,7 +169,8 @@ pub fn get_expectation_generic_domain<T, U, S>(
     x.par_iter().map(|&x_value|{
         cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
             let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-            s+convolute(&cf_incr_m, x_value, get_u(du, index), index, &vk)
+            //s+convolute(&cf_incr_m, x_value, get_u(du, index), index, &vk)
+            s+convolute(&cf_incr_m, x_value, get_u(du, index), index)
         })
     }).collect()
 }
@@ -216,14 +208,14 @@ pub fn get_expectation_x_real<T, U>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
+
     get_expectation_generic_x(
         num_x,
         num_u,
         x_min,
         x_max,
         fn_inv,
-        vk,
-        convolute_real
+        |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
 /**
@@ -254,14 +246,13 @@ pub fn get_expectation_x_extended<T, U>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    get_expectation_generic_x(
+     get_expectation_generic_x(
         num_x,
         num_u,
         x_min,
         x_max,
         fn_inv,
-        vk,
-        convolute_extended
+        |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
     )
 }
 
@@ -290,8 +281,7 @@ pub fn get_expectation_discrete_real<T, U>(
         num_u,
         x,
         fn_inv,
-        vk,
-        convolute_real
+        |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
 /**
@@ -319,8 +309,7 @@ pub fn get_expectation_discrete_extended<T, U>(
         num_u,
         x,
         fn_inv,
-        vk,
-        convolute_extended
+        |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
     )
 }
 
