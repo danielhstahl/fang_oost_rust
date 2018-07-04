@@ -219,41 +219,12 @@ mod tests {
             (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
         
-        let my_inverse=get_density(num_x, num_u, x_min, x_max, norm_cf);
+        let my_inverse=get_density_x(num_x, num_u, x_min, x_max, norm_cf);
         
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
         }
     }
 
-    #[test]
-    fn test_compute_inv_discrete(){
-        let mu=2.0;
-        let sigma=1.0;
-        let num_x=5;
-        let num_u=256;
-        let x_min=-3.0;
-        let x_max=7.0;
-        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-
-        let ref_normal:Vec<f64>=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
-            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
-        }).collect();
-        
-        let my_inverse=compute_inv(num_x, num_u, x_min, x_max, norm_cf);
-        let du=compute_du(x_min, x_max);
-        let cp=compute_cp(du);
-        
-        let discrete_cf=(0..num_u).map(|index|{
-            let u=get_complex_u(get_u(du, index));
-            format_cf_real(&u, x_min, cp, norm_cf)
-        });
-
-        let my_inverse=compute_inv_discrete(num_x, x_min, x_max, discrete_cf);
-
-        for (index, x) in ref_normal.iter().enumerate(){
-            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
-        }
-    }
 
 }
