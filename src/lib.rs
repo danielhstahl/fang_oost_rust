@@ -83,10 +83,16 @@ Levy processes where log(S/K) changes
 for every iteration.  This is done 
 separately from the Characteristic
 Function for computation purposes.*/
-fn convolute<T>(cf_incr:&Complex<f64>, x:f64, u:f64, u_index:usize, vk:T)->f64
+fn convolute_extended<T>(cf_incr:&Complex<f64>, x:f64, u:f64, u_index:usize, vk:T)->f64
     where T:Fn(f64, f64, usize)->f64
 {
     (cf_incr*(get_complex_u(u)*x).exp()).re*vk(u, x, u_index)
+}
+/*Convolution in standard Fourier space.*/
+fn convolute_real<T>(cf_incr:&Complex<f64>, x:f64, u:f64, u_index:usize, vk:T)->f64
+    where T:Fn(f64, f64, usize)->f64
+{
+    cf_incr.re*vk(u, x, u_index)
 }
 
 
@@ -111,33 +117,22 @@ where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     }).collect()
 }
 
-/**
- * Generates expectation over equal mesh
- * in the real domain.  The "type" of
- * expectation is handled by the vk
- * function.  
- * @num_x Number of discrete steps in 
- * the real domain.
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x_min Lower truncation of the real
- * domain.
- * @x_max Upper truncation of the 
- * complex domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
-pub fn get_expectation_x<T, U>(
+
+pub fn get_expectation_generic_x<T, U, S>(
     num_x:usize,
     num_u:usize,
     x_min:f64,
     x_max:f64,
     fn_inv:T,
-    vk:U
+    vk:U,
+    convolute:S
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    S:Fn(
+        &Complex<f64>, f64, f64, usize, 
+        &U
+    )->f64+std::marker::Sync+std::marker::Send
 {
     let dx=compute_dx(num_x, x_min, x_max);
     let du=compute_du(x_min, x_max);
@@ -156,27 +151,19 @@ pub fn get_expectation_x<T, U>(
         })
     }).collect()
 }
-
-/**
- * Generates expectation over real domain
- * provided by the input "x".  The "type" 
- * of expectation is handled by the vk
- * function.  
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x Vector of elements in real domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
-pub fn get_expectation_discrete<T, U>(
+pub fn get_expectation_generic_domain<T, U, S>(
     num_u:usize,
     x:&Vec<f64>,
     fn_inv:T,
-    vk:U
+    vk:U,
+    convolute:S
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    S:Fn(
+        &Complex<f64>, f64, f64, usize, 
+        &U
+    )->f64+std::marker::Sync+std::marker::Send
 {
     let x_max=*x.last().unwrap();
     let x_min=*x.first().unwrap();
@@ -196,6 +183,147 @@ pub fn get_expectation_discrete<T, U>(
     }).collect()
 }
 
+
+
+/**
+ * Generates expectation over equal mesh
+ * in the real domain.  The "type" of
+ * expectation is handled by the vk
+ * function.  
+ * @num_x Number of discrete steps in 
+ * the real domain.
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x_min Lower truncation of the real
+ * domain.
+ * @x_max Upper truncation of the 
+ * complex domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
+/**NOTE!  These are so similar. Is it possible to pass a function as 
+ * a template parameter?
+ */
+pub fn get_expectation_x_real<T, U>(
+    num_x:usize,
+    num_u:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv:T,
+    vk:U
+)->Vec<f64>
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+{
+    get_expectation_generic_x(
+        num_x,
+        num_u,
+        x_min,
+        x_max,
+        fn_inv,
+        vk,
+        convolute_real
+    )
+}
+/**
+ * Generates expectation over equal mesh
+ * in the real domain.  The "type" of
+ * expectation is handled by the vk
+ * function.  
+ * @num_x Number of discrete steps in 
+ * the real domain.
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x_min Lower truncation of the real
+ * domain.
+ * @x_max Upper truncation of the 
+ * complex domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
+pub fn get_expectation_x_extended<T, U>(
+    num_x:usize,
+    num_u:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv:T,
+    vk:U
+)->Vec<f64>
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+{
+    get_expectation_generic_x(
+        num_x,
+        num_u,
+        x_min,
+        x_max,
+        fn_inv,
+        vk,
+        convolute_extended
+    )
+}
+
+/**
+ * Generates expectation over real domain
+ * provided by the input "x".  The "type" 
+ * of expectation is handled by the vk
+ * function.  
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x Vector of elements in real domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
+pub fn get_expectation_discrete_real<T, U>(
+    num_u:usize,
+    x:&Vec<f64>,
+    fn_inv:T,
+    vk:U
+)->Vec<f64>
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+{
+    get_expectation_generic_domain(
+        num_u,
+        x,
+        fn_inv,
+        vk,
+        convolute_real
+    )
+}
+/**
+ * Generates expectation over real domain
+ * provided by the input "x".  The "type" 
+ * of expectation is handled by the vk
+ * function.  
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x Vector of elements in real domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
+pub fn get_expectation_discrete_extended<T, U>(
+    num_u:usize,
+    x:&Vec<f64>,
+    fn_inv:T,
+    vk:U
+)->Vec<f64>
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+{
+    get_expectation_generic_domain(
+        num_u,
+        x,
+        fn_inv,
+        vk,
+        convolute_extended
+    )
+}
+
 pub fn get_density<T>(
     num_u:usize,
     x:&Vec<f64>,
@@ -204,7 +332,7 @@ pub fn get_density<T>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
     let x_min=x.first().unwrap();
-    get_expectation_discrete(
+    get_expectation_discrete_real(
         num_u, 
         &x, 
         fn_inv,
@@ -221,7 +349,7 @@ pub fn get_density_x<T>(
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
-    get_expectation_x(
+    get_expectation_x_real(
         num_x,
         num_u,
         x_min,
