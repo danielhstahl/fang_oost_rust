@@ -1,0 +1,11 @@
+[package]
+name = "fang_oost"
+version = "0.1.0"
+authors = ["b0gx3 <daniel.stahl@regions.com>"]
+
+[dependencies]
+num = "0.2"
+black_scholes = "0.1.2"
+approx = "0.2.0"
+rayon = "1.0.1"
+num-complex = "0.2"
