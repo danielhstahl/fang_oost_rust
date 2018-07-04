@@ -149,9 +149,12 @@ fn compute_discrete_cf<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<Com
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
+    //let cf_tmp=|&u|format_cf(&u, x_min, cp, cf);
     (0..u_discrete).into_par_iter().map(|index|{
         let u=get_complex_u(get_u(du, index));
-        format_cf(&u, x_min, cp, cf)
+        //cf_tmp(&u)
+        //let cf_tmp=cf;
+        format_cf(&u, x_min, cp, &cf) //how is this not a type error??
     }).collect()
 }
 /**return vector of real elements of cf. 
@@ -166,7 +169,7 @@ fn compute_discrete_cf_real<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Ve
     let cp=compute_cp(du);
     (0..u_discrete).into_par_iter().map(|index|{
         let u=get_complex_u(get_u(du, index));
-        format_cf_real(&u, x_min, cp, cf)
+        format_cf_real(&u, x_min, cp, &cf)
     }).collect()
 }
 
@@ -191,7 +194,7 @@ fn compute_convolution_levy<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_
         let x=get_x(x_min, dx, x_index);
         discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
             let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-            s+convolute_levy(&cf_incr_m, x, get_u(du, index), index, vk)
+            s+convolute_levy(&cf_incr_m, x, get_u(du, index), index, &vk)
         })
     }).collect()
 }
@@ -209,7 +212,7 @@ fn compute_convolution_vec_levy_g<T, S>(x_values:&Vec<f64>, discrete_cf:&Vec<Com
         extra_fn(
             discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
                 let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-                s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, vk)
+                s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, &vk)
             }),
             x_value,
             x_index
@@ -229,7 +232,7 @@ fn compute_convolution_at_point_levy<T>(x_value:f64, x_min:f64, x_max:f64, discr
     let du=compute_du(x_min, x_max);
     discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
         let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-        s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, vk)
+        s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, &vk)
     })
 }
 
@@ -254,7 +257,7 @@ fn compute_convolution<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:&V
         let x=get_x(x_min, dx, x_index);
         discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
             let cf_incr_m=adjust_index_fl(&cf_incr, index);
-            s+convolute(cf_incr_m, x, get_u(du, index), index, vk)
+            s+convolute(cf_incr_m, x, get_u(du, index), index, &vk)
         })
     }).collect()
 }
@@ -269,7 +272,7 @@ fn compute_convolution_vec<T>(x_values:&Vec<f64>, discrete_cf:&Vec<f64>,  vk:T)-
     x_values.par_iter().map(|&x_value|{
         discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
             let cf_incr_m=adjust_index_fl(&cf_incr, index);
-            s+convolute(cf_incr_m, x_value, get_u(du, index), index, vk)
+            s+convolute(cf_incr_m, x_value, get_u(du, index), index, &vk)
         })
     }).collect()
 }
@@ -285,7 +288,7 @@ fn compute_convolution_at_point<T>(
     let du=compute_du(x_min, x_max);
     discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
         let cf_incr_m=adjust_index_fl(&cf_incr, index);
-        s+convolute(cf_incr_m, x_value, get_u(du, index), index, vk)
+        s+convolute(cf_incr_m, x_value, get_u(du, index), index, &vk)
     })
 }
 
@@ -698,7 +701,7 @@ mod tests {
     use super::*;
     fn vk_cdf(
         x:f64, u:f64, a:f64, b:f64, k:usize
-    ){
+    )->f64{
         if k==0{x-a} else { ((x-a)*u).sin()/u }
     }
     #[test]
@@ -717,16 +720,46 @@ mod tests {
         let num_u=256;
         let x_min=-3.0;
         let x_max=7.0;
-        let norm_cf=|&u|(u*mu+0.5*u*u*sigma*sigma).exp();
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 
-        let ref_normal=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
-            ((x-mu).pow(2.0)/(2.0*sigma*sigma)).exp()/(sigma*(2*PI).sqrt())
+        let ref_normal:Vec<f64>=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
+            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
         
         let my_inverse=compute_inv(num_x, num_u, x_min, x_max, norm_cf);
         
-        for (index, x) in ref_normal.enumerate(){
-            assert_eq!(x, my_inverse[index]);
+        for (index, x) in ref_normal.iter().enumerate(){
+            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
+        }
+    }
+
+    #[test]
+    fn test_compute_inv_discrete(){
+        let mu=2.0;
+        let sigma=1.0;
+        let num_x=5;
+        let num_u=256;
+        let x_min=-3.0;
+        let x_max=7.0;
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+
+        let ref_normal:Vec<f64>=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
+            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
+        }).collect();
+        
+        let my_inverse=compute_inv(num_x, num_u, x_min, x_max, norm_cf);
+        let du=compute_du(x_min, x_max);
+        let cp=compute_cp(du);
+        
+        let discrete_cf=(0..num_u).map(|index|{
+            let u=get_complex_u(get_u(du, index));
+            format_cf_real(&u, x_min, cp, norm_cf)
+        }).collect();
+
+        let my_inverse=compute_inv_discrete(num_x, x_min, x_max, discrete_cf);
+
+        for (index, x) in ref_normal.iter().enumerate(){
+            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
         }
     }
 
