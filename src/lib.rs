@@ -1,14 +1,12 @@
 extern crate num;
 extern crate num_complex;
 extern crate black_scholes;
-//extern crate num_traits;
 extern crate rayon;
 #[macro_use]
 #[cfg(test)]
 extern crate approx;
 use num_complex::Complex;
-use num::Float;
-use num::traits::{Zero, NumOps, Num};
+use num::traits::{Zero};
 use std::f64::consts::PI;
 use rayon::prelude::*;
 
