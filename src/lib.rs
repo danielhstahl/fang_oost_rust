@@ -132,47 +132,44 @@ fn adjust_index_fl(element:&f64, index:usize)->f64{
     of the function itself
 
 */
-fn convert_log_cf_to_real_exp<'a, I,  K>(x_min:f64, x_max:f64, cf_vec:I)->K
+fn convert_log_cf_to_real_exp<'a, I,  K>(x_min:f64, x_max:f64, cf_vec:I)->Vec<f64>
     where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send,
-    K: impl Iterator<Item = &'a f64>+std::marker::Sync+std::marker::Send
 { 
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
     cf_vec.enumerate().map(|(index, &x)|{
         (x-get_complex_u(get_u(du, index))*x_min).exp().re*cp
-    })
+    }).collect()
 }
 
 /**return vector of complex elements of cf. 
 This is ONLY needed where the CF depends on 
 a changing "x": like for option pricing where 
 x=log(S/K) and K iterates  */
-fn compute_discrete_cf<'a, I, T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->I
-    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
+fn compute_discrete_cf< T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<Complex<f64> >
+    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
     (0..u_discrete).into_par_iter().map(|index|{
         let u=get_complex_u(get_u(du, index));
         format_cf(&u, x_min, cp, &cf) //how is this not a type error??
-    })
+    }).collect()
 }
 /**return vector of real elements of cf. 
 This will work for nearly every type 
 of inversion EXCEPT where the CF depends on 
 a changing "x": like for option pricing where 
 x=log(S/K) and K iterates  */
-fn compute_discrete_cf_real<'a, I, T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->I
-    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
+fn compute_discrete_cf_real<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<f64>
+    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
     (0..u_discrete).into_par_iter().map(|index|{
         let u=get_complex_u(get_u(du, index));
         format_cf_real(&u, x_min, cp, &cf)
-    })
+    }).collect()
 }
 
 
