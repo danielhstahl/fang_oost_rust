@@ -132,45 +132,47 @@ fn adjust_index_fl(element:&f64, index:usize)->f64{
     of the function itself
 
 */
-fn convert_log_cf_to_real_exp(x_min:f64, x_max:f64, cf_vec:&Vec<Complex<f64>>)->Vec<f64>{ 
+fn convert_log_cf_to_real_exp<'a, I,  K>(x_min:f64, x_max:f64, cf_vec:I)->K
+    where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send,
+    K: impl Iterator<Item = &'a f64>+std::marker::Sync+std::marker::Send
+{ 
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
-    cf_vec.par_iter().enumerate().map(|(index, &x)|{
+    cf_vec.enumerate().map(|(index, &x)|{
         (x-get_complex_u(get_u(du, index))*x_min).exp().re*cp
-    }).collect()
+    })
 }
 
 /**return vector of complex elements of cf. 
 This is ONLY needed where the CF depends on 
 a changing "x": like for option pricing where 
 x=log(S/K) and K iterates  */
-fn compute_discrete_cf<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<Complex<f64>>
-    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
+fn compute_discrete_cf<'a, I, T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->I
+    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
-    //let cf_tmp=|&u|format_cf(&u, x_min, cp, cf);
     (0..u_discrete).into_par_iter().map(|index|{
         let u=get_complex_u(get_u(du, index));
-        //cf_tmp(&u)
-        //let cf_tmp=cf;
         format_cf(&u, x_min, cp, &cf) //how is this not a type error??
-    }).collect()
+    })
 }
 /**return vector of real elements of cf. 
 This will work for nearly every type 
 of inversion EXCEPT where the CF depends on 
 a changing "x": like for option pricing where 
 x=log(S/K) and K iterates  */
-fn compute_discrete_cf_real<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Vec<f64> 
-    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
+fn compute_discrete_cf_real<'a, I, T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->I
+    where T: Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
     (0..u_discrete).into_par_iter().map(|index|{
         let u=get_complex_u(get_u(du, index));
         format_cf_real(&u, x_min, cp, &cf)
-    }).collect()
+    })
 }
 
 
@@ -185,23 +187,26 @@ fn compute_discrete_cf_real<T>(x_min:f64, x_max:f64, u_discrete:usize, cf:T)->Ve
     @vK Function (parameters u and x, and index)  
     @returns approximate convolution
 */
-fn compute_convolution_levy<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:&Vec<Complex<f64>>, vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+fn compute_convolution_levy<'a, I, T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:I, vk:T)->Vec<f64>
+    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
+    
 { //vk as defined in fang oosterlee
     let dx=compute_dx(x_discrete, x_min, x_max);
     let du=compute_du(x_min, x_max);
     (0..x_discrete).into_par_iter().map(|x_index|{
         let x=get_x(x_min, dx, x_index);
-        discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
+        discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
             let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
             s+convolute_levy(&cf_incr_m, x, get_u(du, index), index, &vk)
         })
     }).collect()
 }
 
-fn compute_convolution_vec_levy_g<T, S>(x_values:&Vec<f64>, discrete_cf:&Vec<Complex<f64>>, vk:T, extra_fn:S)->Vec<f64>
+fn compute_convolution_vec_levy_g<'a, I, T, S>(x_values:&Vec<f64>, discrete_cf:I, vk:T, extra_fn:S)->Vec<f64>
     where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send, 
-    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
 { //vk as defined in fang oosterlee
     //let x_min:f64=x_values.first();
     let x_min:f64=x_values[0];
@@ -210,7 +215,7 @@ fn compute_convolution_vec_levy_g<T, S>(x_values:&Vec<f64>, discrete_cf:&Vec<Com
     let du=compute_du(x_min, x_max);
     x_values.par_iter().enumerate().map(|(x_index, &x_value)|{
         extra_fn(
-            discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
+            discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
                 let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
                 s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, &vk)
             }),
@@ -220,17 +225,19 @@ fn compute_convolution_vec_levy_g<T, S>(x_values:&Vec<f64>, discrete_cf:&Vec<Com
     }).collect()
 }
 
-fn compute_convolution_vec_levy<T>(x_values:&Vec<f64>, discrete_cf:&Vec<Complex<f64>>, vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+fn compute_convolution_vec_levy<'a, I, T>(x_values:&Vec<f64>, discrete_cf:I, vk:T)->Vec<f64>
+    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
 {
     compute_convolution_vec_levy_g(x_values, discrete_cf, vk, |v, _, _|v)
 }
 
-fn compute_convolution_at_point_levy<T>(x_value:f64, x_min:f64, x_max:f64, discrete_cf:&Vec<Complex<f64>>, vk:T)->f64
-    where T:Fn(f64, f64, usize)->f64
+fn compute_convolution_at_point_levy<'a, I, T>(x_value:f64, x_min:f64, x_max:f64, discrete_cf:I, vk:T)->f64
+    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
 {
     let du=compute_du(x_min, x_max);
-    discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
+    discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
         let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
         s+convolute_levy(&cf_incr_m, x_value, get_u(du, index), index, &vk)
     })
@@ -248,14 +255,15 @@ fn compute_convolution_at_point_levy<T>(x_value:f64, x_min:f64, x_max:f64, discr
     @returns approximate convolution
 */
 
-fn compute_convolution<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:&Vec<f64>, vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+fn compute_convolution<'a, I, T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:I, vk:T)->Vec<f64>
+    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
 {
     let dx=compute_dx(x_discrete, x_min, x_max);
     let du=compute_du(x_min, x_max);
     (0..x_discrete).into_par_iter().map(|x_index|{
         let x=get_x(x_min, dx, x_index);
-        discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
+        discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
             let cf_incr_m=adjust_index_fl(&cf_incr, index);
             s+convolute(cf_incr_m, x, get_u(du, index), index, &vk)
         })
@@ -263,30 +271,36 @@ fn compute_convolution<T>(x_discrete:usize, x_min:f64, x_max:f64, discrete_cf:&V
 }
 
 
-fn compute_convolution_vec<T>(x_values:&Vec<f64>, discrete_cf:&Vec<f64>,  vk:T)->Vec<f64>
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+fn compute_convolution_vec<'a, I, T>(
+    x_values:&Vec<f64>, 
+    discrete_cf:I,  vk:T
+)->Vec<f64>
+    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
 {
     let x_min=x_values[0];
     let x_max=x_values[x_values.len()-1];
     let du=compute_du(x_min, x_max);
     x_values.par_iter().map(|&x_value|{
-        discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
+        discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
             let cf_incr_m=adjust_index_fl(&cf_incr, index);
             s+convolute(cf_incr_m, x_value, get_u(du, index), index, &vk)
         })
     }).collect()
 }
 
-fn compute_convolution_at_point<T>(
+fn compute_convolution_at_point<'a, I,T>(
     x_value:f64, 
     x_min:f64,
     x_max:f64,
-    discrete_cf:&Vec<f64>,  
-    vk:T)->f64
-    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    discrete_cf:I,  
+    vk:T
+)->f64
+    where T:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
 {
     let du=compute_du(x_min, x_max);
-    discrete_cf.iter().enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
+    discrete_cf.enumerate().fold(f64::zero(), |s, (index, &cf_incr)|{
         let cf_incr_m=adjust_index_fl(&cf_incr, index);
         s+convolute(cf_incr_m, x_value, get_u(du, index), index, &vk)
     })
@@ -306,10 +320,12 @@ fn compute_convolution_at_point<T>(
     @discreteCF vector of characteristic function of the density at discrete U
     @returns approximate density
 */
-pub fn compute_inv_discrete(
+pub fn compute_inv_discrete<'a, I>(
     x_discrete: usize, x_min:f64, 
-    x_max:f64, discrete_cf:&Vec<f64>
-)->Vec<f64>{
+    x_max:f64, discrete_cf:I
+)->Vec<f64>
+    where I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
+{
     compute_convolution(x_discrete, x_min, x_max, discrete_cf, |u, x, _|{
         (u*(x-x_min)).cos()
     })
@@ -330,13 +346,12 @@ pub fn compute_inv<T>(
 )->Vec<f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf_real( //Vec<f64>
-        x_min, x_max, u_discrete, 
-        fn_inv 
-    );
     compute_inv_discrete(
         x_discrete, x_min, x_max, 
-        &discrete_cf
+        compute_discrete_cf_real(
+            x_min, x_max, u_discrete, 
+            fn_inv 
+        )
     )
 
 }
@@ -349,18 +364,19 @@ pub fn compute_inv<T>(
     @logFnInv vector of log characteristic function of the density at discrete U 
     @returns approximate density
 */
-pub fn compute_inv_discrete_log(
+pub fn compute_inv_discrete_log<'a, I>(
     x_discrete:usize, 
     x_min:f64, x_max:f64, 
-    fn_inv_log:&Vec<Complex<f64>>
-)->Vec<f64> {
-    let discrete_cf_log=convert_log_cf_to_real_exp( 
-        x_min, x_max, 
-        fn_inv_log
-    );
+    fn_inv_log:I
+)->Vec<f64>
+    where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
+{
     compute_inv_discrete(
         x_discrete, x_min, x_max, 
-        &discrete_cf_log
+        convert_log_cf_to_real_exp( 
+            x_min, x_max, 
+            fn_inv_log
+        )
     )
 }
 
@@ -382,13 +398,12 @@ pub fn compute_expectation_levy<T, S>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf(
-        x_min, x_max, u_discrete,
-        fn_inv
-    );
     compute_convolution_levy(
         x_discrete, x_min, x_max, 
-        &discrete_cf,
+        compute_discrete_cf(
+            x_min, x_max, u_discrete,
+            fn_inv
+        ),
         vk
     )
 }
@@ -404,12 +419,13 @@ pub fn compute_expectation_levy<T, S>(
     @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
     @returns approximate expectation
 */
-pub fn compute_expectation_levy_discrete<S>(
+pub fn compute_expectation_levy_discrete<'a, I, S>(
     x_discrete:usize, x_min:f64, x_max:f64,
-    discrete_cf:&Vec<Complex<f64>>,
+    discrete_cf:I,
     vk:S
 )->Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
 {
     compute_convolution_levy(
         x_discrete, x_min, x_max,
@@ -439,15 +455,14 @@ pub fn compute_expectation<T, S>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf_real(
-        x_min, x_max,
-        u_discrete,
-        fn_inv
-    );
     compute_convolution(
         x_discrete,
         x_min, x_max,
-        &discrete_cf,
+        compute_discrete_cf_real(
+            x_min, x_max,
+            u_discrete,
+            fn_inv
+        ),
         vk
     )
 }
@@ -463,12 +478,13 @@ pub fn compute_expectation<T, S>(
     @returns approximate expectation
 */
 
-pub fn compute_expectation_discrete<T, S>(
+pub fn compute_expectation_discrete<'a, I, S>(
     x_discrete:usize,
     x_min:f64, x_max:f64,
-    fn_inv:&Vec<f64>, vk:S
+    fn_inv:I, vk:S
 )->Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
 {
     compute_convolution(
         x_discrete,
@@ -497,15 +513,14 @@ pub fn compute_expectation_vec_levy_g<T, S, U>(
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf(
-        x_values[0],
-        x_values[x_values.len()-1],
-        u_discrete,
-        fn_inv
-    );
     compute_convolution_vec_levy_g(
         x_values, 
-        &discrete_cf,
+        compute_discrete_cf(
+            x_values[0],
+            x_values[x_values.len()-1],
+            u_discrete,
+            fn_inv
+        ),
         vk, extra_fn
     )
 }
@@ -542,12 +557,13 @@ pub fn compute_expectation_vec_levy<T, S>(
     @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
     @returns approximate expectation
 */
-pub fn compute_expectation_vec_levy_discrete<S>(
+pub fn compute_expectation_vec_levy_discrete<'a, I, S>(
     x_values: &Vec<f64>,
-    discrete_cf: &Vec<Complex<f64>>,
+    discrete_cf:I,
     vk:S
 )->Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send
 {
     compute_convolution_vec_levy(
         x_values, discrete_cf, vk
@@ -571,15 +587,14 @@ pub fn compute_expectation_vec<T, S>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf_real(
-        x_values[0],
-        x_values[x_values.len()-1],
-        u_discrete,
-        fn_inv
-    );
     compute_convolution_vec(
         x_values,
-        &discrete_cf,
+        compute_discrete_cf_real(
+            x_values[0],
+            x_values[x_values.len()-1],
+            u_discrete,
+            fn_inv
+        ),
         vk
     )
 }
@@ -592,12 +607,13 @@ pub fn compute_expectation_vec<T, S>(
     @vK Function (parameters u and x) or vector to multiply discrete characteristic function by.  
     @returns approximate expectation
 */
-pub fn compute_expectation_vec_discrete<S>(
+pub fn compute_expectation_vec_discrete<'a, I, S>(
     x_values:&Vec<f64>,
-    discrete_cf:&Vec<f64 >,
+    discrete_cf:I,
     vk:S
 ) -> Vec<f64>
-    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+    where S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send,
+    I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send
 {
     compute_convolution_vec(
         x_values, 
@@ -617,29 +633,28 @@ pub fn compute_expectation_at_point_levy<T, S>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf(
-        x_min,
-        x_max,
-        u_discrete,
-        fn_inv
-    );
     compute_convolution_at_point_levy(
         x_value,
         x_min,
         x_max,
-        &discrete_cf,
+        compute_discrete_cf(
+            x_min,
+            x_max,
+            u_discrete,
+            fn_inv
+        ),
         vk
     )
 }
 
-pub fn compute_expectation_at_point_levy_discrete<T, S>(
+pub fn compute_expectation_at_point_levy_discrete<'a, I, S>(
     x_value:f64,
     x_min:f64, 
     x_max:f64,
-    fn_inv:&Vec<Complex<f64>>,
+    fn_inv:I,
     vk:S
 )->f64
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    where I: Iterator<Item = &'a Complex<f64> >+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
     compute_convolution_at_point_levy(
@@ -662,27 +677,27 @@ pub fn compute_expectation_at_point<T, S>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let discrete_cf=compute_discrete_cf_real(
-        x_min, x_max,
-        u_discrete,
-        fn_inv
-    );
+
     compute_convolution_at_point(
         x_value,
         x_min,
         x_max,
-        &discrete_cf,
+        compute_discrete_cf_real(
+            x_min, x_max,
+            u_discrete,
+            fn_inv
+        ),
         vk
     )
 }
-pub fn compute_expectation_at_point_discrete<T, S>(
+pub fn compute_expectation_at_point_discrete<'a, I, S>(
     x_value:f64,
     x_min:f64,
     x_max:f64,
-    fn_inv:&Vec<f64>,
+    fn_inv:I,
     vk:S
 )->f64
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    where I: Iterator<Item = &'a f64 >+std::marker::Sync+std::marker::Send,
     S:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
     compute_convolution_at_point(
@@ -754,7 +769,7 @@ mod tests {
         let discrete_cf=(0..num_u).map(|index|{
             let u=get_complex_u(get_u(du, index));
             format_cf_real(&u, x_min, cp, norm_cf)
-        }).collect();
+        });
 
         let my_inverse=compute_inv_discrete(num_x, x_min, x_max, discrete_cf);
 
