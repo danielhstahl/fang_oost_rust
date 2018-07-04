@@ -111,7 +111,23 @@ where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     }).collect()
 }
 
-//everything is an expectation in some sense
+/**
+ * Generates expectation over equal mesh
+ * in the real domain.  The "type" of
+ * expectation is handled by the vk
+ * function.  
+ * @num_x Number of discrete steps in 
+ * the real domain.
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x_min Lower truncation of the real
+ * domain.
+ * @x_max Upper truncation of the 
+ * complex domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
 pub fn get_expectation_x<T, U>(
     num_x:usize,
     num_u:usize,
@@ -140,6 +156,19 @@ pub fn get_expectation_x<T, U>(
         })
     }).collect()
 }
+
+/**
+ * Generates expectation over real domain
+ * provided by the input "x".  The "type" 
+ * of expectation is handled by the vk
+ * function.  
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x Vector of elements in real domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
 pub fn get_expectation_discrete<T, U>(
     num_u:usize,
     x:&Vec<f64>,
