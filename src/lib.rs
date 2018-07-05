@@ -5,6 +5,9 @@ extern crate rayon;
 #[macro_use]
 #[cfg(test)]
 extern crate approx;
+#[cfg(test)]
+extern crate statrs;
+
 use num_complex::Complex;
 use num::traits::{Zero};
 use std::f64::consts::PI;
@@ -353,7 +356,7 @@ pub fn get_density_x<T>(
 mod tests {
     use super::*;
     fn vk_cdf(
-        x:f64, u:f64, a:f64, _b:f64, k:usize
+        u:f64, x:f64, a:f64, k:usize
     )->f64{
         if k==0{x-a} else { ((x-a)*u).sin()/u }
     }
@@ -386,5 +389,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_cdf(){
+        let mu=2.0;
+        let sigma:f64=5.0;
+        
+        let num_x=55;
+        let num_u=256;
+        let x_min=-20.0;
+        let x_max=25.0;
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+        let ref_normal:Vec<f64>=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
+            0.5*statrs::function::erf::erfc(-((x-mu)/sigma)/(2.0 as f64).sqrt())
+        }).collect();
+        
+        let result=get_expectation_x_real(num_x, num_u, x_min, x_max, norm_cf, |u, x, k|{
+            vk_cdf(u, x, x_min, k)
+        });
+        for (index, x) in ref_normal.iter().enumerate(){
+            assert_abs_diff_eq!(*x, result[index], epsilon=0.001);
+        }
+
+    }
 
 }
