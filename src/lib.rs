@@ -104,13 +104,27 @@ fn adjust_index_cmpl(element:&Complex<f64>, index:usize)->Complex<f64>
     if index==0{element*0.5} else {*element}
 }
 
+fn integrate_cf<S>(
+    cf_discrete:&Vec<Complex<f64>>, 
+    x:f64,
+    du:f64,
+    convolute:S
+)->f64
+    where S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+{
+    cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
+        let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
+        s+convolute(&cf_incr_m, x, get_u(du, index), index)
+    })
+}
+
 pub fn get_discrete_cf<T>(
     num_u:usize,
     x_min:f64,
     x_max:f64,
     fn_inv:T
 )->Vec<Complex<f64>>
-where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
@@ -139,14 +153,10 @@ pub fn get_expectation_generic_x<T, S>(
         num_u, 
         x_min, x_max, fn_inv
     );
-    //for every x, iterate over discrete cf
+    //for every x, integrate over discrete cf
     (0..num_x).into_par_iter().map(|x_index|{
         let x=get_x(x_min, dx, x_index);
-        cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
-            let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-            //s+convolute(&cf_incr_m, x, get_u(du, index), index, &vk)
-            s+convolute(&cf_incr_m, x, get_u(du, index), index)
-        })
+        integrate_cf(&cf_discrete, x, du, &convolute)
     }).collect()
 }
 pub fn get_expectation_generic_domain<T, S>(
@@ -166,13 +176,9 @@ pub fn get_expectation_generic_domain<T, S>(
         num_u, 
         x_min, x_max, fn_inv
     );
-    //for every x, iterate over discrete cf
+    //for every x, integrate over discrete cf
     x.par_iter().map(|&x_value|{
-        cf_discrete.iter().enumerate().fold(f64::zero(), |s, (index, cf_incr)|{
-            let cf_incr_m=adjust_index_cmpl(&cf_incr, index);
-            //s+convolute(&cf_incr_m, x_value, get_u(du, index), index, &vk)
-            s+convolute(&cf_incr_m, x_value, get_u(du, index), index)
-        })
+        integrate_cf(&cf_discrete, x_value, du, &convolute)
     }).collect()
 }
 
