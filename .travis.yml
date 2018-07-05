@@ -11,8 +11,7 @@ cache: cargo
 env:
   global:
   - RUSTFLAGS="-C link-dead-code"
-  matrix:
-    secure: n64KBpUnlWyO2trP/AHOixOx4fiWBh9yZOB1VKGY2eaymr8dOXtK/SqWZ8xQaNlkn+SEI2zF5XwqNnXDbEigG1OeCHTFZcDnKxMnHWxZ5dN9P3OwfYlCsZL5rkRKC6Isc2IEbN2/M9Y0c4g2V9YJIWOOdTu56OyFjv6CO3SaOtychCeLWZ37sDsZQz3l6dmMmXO7IJrnPjNYYRON/4p3zg3SAGB7V6Hcq0APGzy8ugwc6q0t0sIfFBlIcWLM5dDhvulJTdW69c70whagSnrqilMZQ+hmAglFhKtEfHQr5Or1iGdlQw3vytURJ8QJ1SjxiUDHFUW2HgEPvarLXC2y9JJUqKUA+pfVTpTmJc8+k5886vrH549FtLnzp5YhSpu86IwNQT/fT7SrPiFXDPpSyXBm86dRdU48jDCyP+w999BunKB3r/x9wW0sHChPQzgZCzbFyAK5QgaJ/ArI+5Hh9mQWsRIKmv5swBiaNRL/t5UyRI9qK80QGffNLFLKTnaMzNuDjo/Od4rlvdZ2o33PaFKs2NXx63UKPj/GKfG5LonKWqjQXWeyWMSReMK1Iu9O6f/eITssvjmFPtKd50X8In/K8Nqd5qF+aKzcAEedDZ4TpV2okCrdfhZ9sMXFvYybKaPDg0cuxex168wgqVBVYC92O4QEv+1/1C4KS1zBrFk=
+  - secure: smQ1nBQ8pM12u6LWc+elM5bSyj4Hgd61h3HcStqtLF88KZBbGlqgZCxewfrWQg7eAk1SPTtiaqc6c6XpZEEWMTYqfa2tkBChnlnatJTwWCGaPjrpBxRyvDhQp/xzTbWfbCNMYtSrA6DnTu2TssBh7HGTt9nffFRRqlX4aBbDePWWxK/1V99fHNYN6kz1g2N/GVxawQ0naUDyzG3bIvQqi1S+ERHNS3gkJo4g7zaeJOhPOQeCfztrqWKC9Bmh8uzOQjumlPj5t0WIrFYYkQpHNZ+uy/uwuZbSopAehIjShrhT9zoFCJQTW4dSKVbJQleKc6QKhw03FNzUHQOLH5ztULttKrcXmVm0e/CetMruhkLwMaVZVoWu/UR2t+Om4LfGWMFnNtf98LkUTkFewzQ9EsU7mqEK9AoNSWhMtAV8BJtFOEdczkO67FDeAFJWf/fpPBjfFjtC49L0wNIH8+9JyEv1Np7FCMV/epO4PXu5na3rUkMYZQAc4mmwptNiHupnsyW4bN5sEwb/Z/Kgy7+sRU++/dISH3v8bs6sZp2z5hJ4tgu1YFmYJTiYy//KUTfSPo3HTx6+/qKE/c/AQDsRZqcIYNP2iSOkVpmVU1VpgLMG5XuC/crMlRacw7PPautXaQf9gmcOkEhgL5Jmku/fiCKM8MiNBKkpOWTtq4P8Cbc=
 addons:
   apt:
     packages:
@@ -23,7 +22,7 @@ addons:
     - gcc
     - binutils-dev
     - libiberty-dev
-after_success: |
+after_success: |-
   wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
   tar xzf master.tar.gz &&
   cd kcov-master &&
