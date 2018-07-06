@@ -8,10 +8,6 @@ matrix:
   allow_failures:
   - rust: nightly
 cache: cargo
-script:
-- cargo clean
-- cargo build
-- cargo test
 env:
   global:
   - RUSTFLAGS="-C link-dead-code"
