@@ -142,7 +142,7 @@ pub fn get_expectation_generic_x<T, S>(
     x_max:f64,
     fn_inv:T,
     convolute:S
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -154,17 +154,17 @@ pub fn get_expectation_generic_x<T, S>(
         x_min, x_max, fn_inv
     );
     //for every x, integrate over discrete cf
-    (0..num_x).into_par_iter().map(|x_index|{
+    (0..num_x).into_par_iter().map(move |x_index|{
         let x=get_x(x_min, dx, x_index);
         integrate_cf(&cf_discrete, x, du, &convolute)
-    }).collect()
+    })//.collect()
 }
 pub fn get_expectation_generic_domain<T, S>(
     num_u:usize,
-    x:&Vec<f64>,
+    x:&'static Vec<f64>,
     fn_inv:T,
     convolute:S
-)->Vec<f64>
+)-> impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -177,9 +177,9 @@ pub fn get_expectation_generic_domain<T, S>(
         x_min, x_max, fn_inv
     );
     //for every x, integrate over discrete cf
-    x.par_iter().map(|&x_value|{
+    x.par_iter().map(move |&x_value|{
         integrate_cf(&cf_discrete, x_value, du, &convolute)
-    }).collect()
+    })//.collect()
 }
 
 
@@ -211,7 +211,7 @@ pub fn get_expectation_x_real<T, U>(
     x_max:f64,
     fn_inv:T,
     vk:U
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -222,7 +222,7 @@ pub fn get_expectation_x_real<T, U>(
         x_min,
         x_max,
         fn_inv,
-        |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
+        move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
 /**
@@ -249,7 +249,7 @@ pub fn get_expectation_x_extended<T, U>(
     x_max:f64,
     fn_inv:T,
     vk:U
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -259,7 +259,7 @@ pub fn get_expectation_x_extended<T, U>(
         x_min,
         x_max,
         fn_inv,
-        |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
+        move |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
     )
 }
 
@@ -277,10 +277,10 @@ pub fn get_expectation_x_extended<T, U>(
  */
 pub fn get_expectation_discrete_real<T, U>(
     num_u:usize,
-    x:&Vec<f64>,
+    x:&'static Vec<f64>,
     fn_inv:T,
     vk:U
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -288,7 +288,7 @@ pub fn get_expectation_discrete_real<T, U>(
         num_u,
         x,
         fn_inv,
-        |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
+        move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
 /**
@@ -305,10 +305,10 @@ pub fn get_expectation_discrete_real<T, U>(
  */
 pub fn get_expectation_discrete_extended<T, U>(
     num_u:usize,
-    x:&Vec<f64>,
+    x:&'static Vec<f64>,
     fn_inv:T,
     vk:U
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -316,15 +316,15 @@ pub fn get_expectation_discrete_extended<T, U>(
         num_u,
         x,
         fn_inv,
-        |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
+        move |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
     )
 }
 
 pub fn get_density<T>(
     num_u:usize,
-    x:&Vec<f64>,
+    x:&'static Vec<f64>,
     fn_inv:T
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
     let x_min=x.first().unwrap();
@@ -332,7 +332,7 @@ pub fn get_density<T>(
         num_u, 
         &x, 
         fn_inv,
-        |u, x, _|(u*(x-x_min)).cos()
+        move |u, x, _|(u*(x-x_min)).cos()
     )
 }
 
@@ -342,7 +342,7 @@ pub fn get_density_x<T>(
     x_min:f64,
     x_max:f64,
     fn_inv:T
-)->Vec<f64>
+)->impl ParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
     get_expectation_x_real(
@@ -351,7 +351,7 @@ pub fn get_density_x<T>(
         x_min,
         x_max,
         fn_inv,
-        |u, x, _|(u*(x-x_min)).cos()
+        move |u, x, _|(u*(x-x_min)).cos()
     )
 }
 
@@ -388,7 +388,7 @@ mod tests {
             (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
         
-        let my_inverse=get_density_x(num_x, num_u, x_min, x_max, norm_cf);
+        let my_inverse:Vec<f64>=get_density_x(num_x, num_u, x_min, x_max, norm_cf).collect();
         
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
@@ -409,9 +409,9 @@ mod tests {
             0.5*statrs::function::erf::erfc(-((x-mu)/sigma)/(2.0 as f64).sqrt())
         }).collect();
         
-        let result=get_expectation_x_real(num_x, num_u, x_min, x_max, norm_cf, |u, x, k|{
+        let result:Vec<f64>=get_expectation_x_real(num_x, num_u, x_min, x_max, norm_cf, |u, x, k|{
             vk_cdf(u, x, x_min, k)
-        });
+        }).collect();
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, result[index], epsilon=0.001);
         }
