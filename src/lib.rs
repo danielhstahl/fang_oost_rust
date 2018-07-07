@@ -142,7 +142,7 @@ pub fn get_expectation_generic_x<T, S>(
     x_max:f64,
     fn_inv:T,
     convolute:S
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -164,7 +164,7 @@ pub fn get_expectation_generic_domain<T, S>(
     x:&'static Vec<f64>,
     fn_inv:T,
     convolute:S
-)-> impl ParallelIterator<Item = f64>
+)-> impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -211,7 +211,7 @@ pub fn get_expectation_x_real<T, U>(
     x_max:f64,
     fn_inv:T,
     vk:U
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -249,7 +249,7 @@ pub fn get_expectation_x_extended<T, U>(
     x_max:f64,
     fn_inv:T,
     vk:U
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -280,7 +280,7 @@ pub fn get_expectation_discrete_real<T, U>(
     x:&'static Vec<f64>,
     fn_inv:T,
     vk:U
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -308,7 +308,7 @@ pub fn get_expectation_discrete_extended<T, U>(
     x:&'static Vec<f64>,
     fn_inv:T,
     vk:U
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
@@ -324,7 +324,7 @@ pub fn get_density<T>(
     num_u:usize,
     x:&'static Vec<f64>,
     fn_inv:T
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
     let x_min=x.first().unwrap();
@@ -342,7 +342,7 @@ pub fn get_density_x<T>(
     x_min:f64,
     x_max:f64,
     fn_inv:T
-)->impl ParallelIterator<Item = f64>
+)->impl IndexedParallelIterator<Item = f64>
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
 {
     get_expectation_x_real(
