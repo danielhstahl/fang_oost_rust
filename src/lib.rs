@@ -159,14 +159,14 @@ pub fn get_expectation_generic_x<T, S>(
         integrate_cf(&cf_discrete, x, du, &convolute)
     })//.collect()
 }
-pub fn get_expectation_generic_domain<T, S>(
+pub fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
     num_u:usize,
-    x:&'static Vec<f64>,
+    x:&'b Vec<f64>,
     fn_inv:T,
     convolute:S
-)-> impl IndexedParallelIterator<Item = f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+)-> impl IndexedParallelIterator<Item = f64>+'a
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
+    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
 {
     let x_max=*x.last().unwrap();
     let x_min=*x.first().unwrap();
@@ -275,14 +275,14 @@ pub fn get_expectation_x_extended<T, U>(
  * @vk Function which controls what kind
  * of expectation (the integrand).
  */
-pub fn get_expectation_discrete_real<T, U>(
+pub fn get_expectation_discrete_real<'a, 'b: 'a, T, U>(
     num_u:usize,
-    x:&'static Vec<f64>,
+    x:&'b Vec<f64>,
     fn_inv:T,
     vk:U
-)->impl IndexedParallelIterator<Item = f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+)->impl IndexedParallelIterator<Item = f64>+'a
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
 {
     get_expectation_generic_domain(
         num_u,
@@ -303,14 +303,14 @@ pub fn get_expectation_discrete_real<T, U>(
  * @vk Function which controls what kind
  * of expectation (the integrand).
  */
-pub fn get_expectation_discrete_extended<T, U>(
+pub fn get_expectation_discrete_extended<'a, 'b: 'a, T, U>(
     num_u:usize,
-    x:&'static Vec<f64>,
+    x:&'b Vec<f64>,
     fn_inv:T,
     vk:U
-)->impl IndexedParallelIterator<Item = f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
-    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
+)->impl IndexedParallelIterator<Item = f64>+'a
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
 {
     get_expectation_generic_domain(
         num_u,
@@ -320,12 +320,12 @@ pub fn get_expectation_discrete_extended<T, U>(
     )
 }
 
-pub fn get_density<T>(
+pub fn get_density<'a, 'b: 'a, T>(
     num_u:usize,
-    x:&'static Vec<f64>,
+    x:&'b Vec<f64>,
     fn_inv:T
-)->impl IndexedParallelIterator<Item = f64>
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
+)->impl IndexedParallelIterator<Item = f64>+'a
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
 {
     let x_min=x.first().unwrap();
     get_expectation_discrete_real(
