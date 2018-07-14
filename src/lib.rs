@@ -179,7 +179,7 @@ pub fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
     //for every x, integrate over discrete cf
     x.par_iter().map(move |&x_value|{
         integrate_cf(&cf_discrete, x_value, du, &convolute)
-    })//.collect()
+    })
 }
 
 
