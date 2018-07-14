@@ -157,7 +157,7 @@ pub fn get_expectation_generic_x<T, S>(
     (0..num_x).into_par_iter().map(move |x_index|{
         let x=get_x(x_min, dx, x_index);
         integrate_cf(&cf_discrete, x, du, &convolute)
-    })//.collect()
+    })
 }
 pub fn get_expectation_generic_domain<T, S>(
     num_u:usize,
@@ -200,9 +200,6 @@ pub fn get_expectation_generic_domain<T, S>(
  * @fn_inv Characteristic function.
  * @vk Function which controls what kind
  * of expectation (the integrand).
- */
-/**NOTE!  These are so similar. Is it possible to pass a function as 
- * a template parameter?
  */
 pub fn get_expectation_x_real<T, U>(
     num_x:usize,
