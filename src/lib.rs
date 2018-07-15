@@ -1,6 +1,5 @@
 extern crate num;
 extern crate num_complex;
-extern crate black_scholes;
 extern crate rayon;
 #[macro_use]
 #[cfg(test)]
@@ -105,7 +104,7 @@ fn adjust_index_cmpl(element:&Complex<f64>, index:usize)->Complex<f64>
 }
 
 fn integrate_cf<S>(
-    cf_discrete:&Vec<Complex<f64>>, 
+    cf_discrete:&[Complex<f64>], 
     x:f64,
     du:f64,
     convolute:S
@@ -161,7 +160,7 @@ fn get_expectation_generic_x<T, S>(
 }
 fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
     num_u:usize,
-    x:&'b Vec<f64>,
+    x:&'b [f64],
     fn_inv:T,
     convolute:S
 )-> impl IndexedParallelIterator<Item = f64>+'a
@@ -186,7 +185,7 @@ fn get_expectation_generic_single_element<'a, S>(
     x_min:f64,
     x_max:f64,
     x:f64,
-    fn_inv_discrete:&Vec<Complex<f64>>,
+    fn_inv_discrete:&[Complex<f64>],
     convolute:S
 )-> f64
     where 
@@ -289,7 +288,7 @@ pub fn get_expectation_x_extended<T, U>(
  */
 pub fn get_expectation_discrete_real<'a, 'b: 'a, T, U>(
     num_u:usize,
-    x:&'b Vec<f64>,
+    x:&'b [f64],
     fn_inv:T,
     vk:U
 )->impl IndexedParallelIterator<Item = f64>+'a
@@ -317,7 +316,7 @@ pub fn get_expectation_discrete_real<'a, 'b: 'a, T, U>(
  */
 pub fn get_expectation_discrete_extended<'a, 'b: 'a, T, U>(
     num_u:usize,
-    x:&'b Vec<f64>,
+    x:&'b [f64],
     fn_inv:T,
     vk:U
 )->impl IndexedParallelIterator<Item = f64>+'a
@@ -348,7 +347,7 @@ pub fn get_expectation_single_element_real<'a,  U>(
     x_min:f64,
     x_max:f64,
     x:f64,
-    fn_inv_discrete:&Vec<Complex<f64>>,
+    fn_inv_discrete:&[Complex<f64>],
     vk:U
 )->f64
     where 
@@ -380,7 +379,7 @@ pub fn get_expectation_single_element_extended<'a, U>(
     x_min:f64,
     x_max:f64,
     x:f64,
-    fn_inv_discrete:&Vec<Complex<f64>>,
+    fn_inv_discrete:&[Complex<f64>],
     vk:U
 )->f64
     where 
@@ -397,7 +396,7 @@ pub fn get_expectation_single_element_extended<'a, U>(
 
 pub fn get_density<'a, 'b: 'a, T>(
     num_u:usize,
-    x:&'b Vec<f64>,
+    x:&'b [f64],
     fn_inv:T
 )->impl IndexedParallelIterator<Item = f64>+'a
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
