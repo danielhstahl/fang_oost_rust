@@ -135,7 +135,7 @@ pub fn get_discrete_cf<T>(
 }
 
 
-pub fn get_expectation_generic_x<T, S>(
+fn get_expectation_generic_x<T, S>(
     num_x:usize,
     num_u:usize,
     x_min:f64,
@@ -159,7 +159,7 @@ pub fn get_expectation_generic_x<T, S>(
         integrate_cf(&cf_discrete, x, du, &convolute)
     })
 }
-pub fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
+fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
     num_u:usize,
     x:&'b Vec<f64>,
     fn_inv:T,
@@ -182,25 +182,19 @@ pub fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
     })
 }
 
-pub fn get_expectation_generic_single_element<'a, T, S>(
-    num_u:usize,
+fn get_expectation_generic_single_element<'a, S>(
     x_min:f64,
     x_max:f64,
     x:f64,
-    fn_inv:T,
+    fn_inv_discrete:&Vec<Complex<f64>>,
     convolute:S
 )-> f64
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
+    where 
     S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
 {
     let du=compute_du(x_min, x_max);
     //get discrete cf
-    let cf_discrete=get_discrete_cf(
-        num_u, 
-        x_min, x_max, fn_inv
-    );
-    integrate_cf(&cf_discrete, x, du, &convolute)
-   
+    integrate_cf(fn_inv_discrete, x, du, &convolute)
 }
 
 
@@ -338,6 +332,69 @@ pub fn get_expectation_discrete_extended<'a, 'b: 'a, T, U>(
     )
 }
 
+/**
+ * Generates expectation over single x.  
+ * The "type" 
+ * of expectation is handled by the vk
+ * function.  
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x Vector of elements in real domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
+pub fn get_expectation_single_element_real<'a,  U>(
+    x_min:f64,
+    x_max:f64,
+    x:f64,
+    fn_inv_discrete:&Vec<Complex<f64>>,
+    vk:U
+)->f64
+    where 
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+{
+    get_expectation_generic_single_element(
+        x_min,
+        x_max,
+        x,
+        fn_inv_discrete,
+        move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
+    )
+}
+
+
+/**
+ * Generates expectation over single x.  
+ * The "type" 
+ * of expectation is handled by the vk
+ * function.  
+ * @num_u Number of discrete steps in
+ * the complex domain.
+ * @x Vector of elements in real domain.
+ * @fn_inv Characteristic function.
+ * @vk Function which controls what kind
+ * of expectation (the integrand).
+ */
+pub fn get_expectation_single_element_extended<'a, U>(
+    x_min:f64,
+    x_max:f64,
+    x:f64,
+    fn_inv_discrete:&Vec<Complex<f64>>,
+    vk:U
+)->f64
+    where 
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+{
+    get_expectation_generic_single_element(
+        x_min,
+        x_max,
+        x,
+        fn_inv_discrete,
+        move |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
+    )
+}
+
 pub fn get_density<'a, 'b: 'a, T>(
     num_u:usize,
     x:&'b Vec<f64>,
@@ -433,6 +490,26 @@ mod tests {
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, result[index], epsilon=0.001);
         }
+
+    }
+
+    #[test]
+    fn test_expectation(){
+        let mu=2.0;
+        let sigma:f64=5.0;
+        let num_u=256;
+        let x_min=-20.0;
+        let x_max=25.0;
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+        
+        let cf_discrete=get_discrete_cf(num_u, x_min, x_max, norm_cf);
+
+        let result:f64=get_expectation_single_element_real(
+            x_min, x_max, 2.0, &cf_discrete, |u, x, k|{
+                vk_cdf(u, x, x_min, k)
+            }
+        );
+        assert_abs_diff_eq!(0.5, result, epsilon=0.001);
 
     }
 
