@@ -182,6 +182,27 @@ pub fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
     })//.collect()
 }
 
+pub fn get_expectation_generic_single_element<'a, T, S>(
+    num_u:usize,
+    x_min:f64,
+    x_max:f64,
+    x:f64,
+    fn_inv:T,
+    convolute:S
+)-> f64
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
+    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+{
+    let du=compute_du(x_min, x_max);
+    //get discrete cf
+    let cf_discrete=get_discrete_cf(
+        num_u, 
+        x_min, x_max, fn_inv
+    );
+    integrate_cf(&cf_discrete, x, du, &convolute)
+   
+}
+
 
 
 /**
