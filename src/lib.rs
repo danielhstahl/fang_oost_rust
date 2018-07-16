@@ -470,6 +470,28 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_inv_provide_range(){
+        let mu=2.0;
+        let sigma=1.0;
+        let num_x=5;
+        let num_u=256;
+        let x_min=-3.0;
+        let x_max=7.0;
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+
+        let x_range=compute_x_range(num_x, x_min, x_max);
+        let ref_normal:Vec<f64>=x_range.iter().map(|x|{
+            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
+        }).collect();
+        
+        let my_inverse:Vec<f64>=get_density(num_u, &x_range, norm_cf).collect();
+        
+        for (index, x) in ref_normal.iter().enumerate(){
+            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
+        }
+    }
+
+    #[test]
     fn test_cdf(){
         let mu=2.0;
         let sigma:f64=5.0;
