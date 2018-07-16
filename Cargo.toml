@@ -1,6 +1,6 @@
 [package]
 name = "fang_oost"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Daniel Stahl <danstahl1138@gmail.com>"]
 homepage = "https://github.com/phillyfan1138/fang_oost_rust"
 repository = "https://github.com/phillyfan1138/fang_oost_rust"
@@ -10,9 +10,11 @@ description = "A library implementing Fang and Oosterlee's algorithm for inverti
 
 [dependencies]
 num = "0.2"
-approx = "0.2.0"
 rayon = "1.0.1"
 num-complex = "0.2"
+
+[dev-dependencies]
+approx = "0.2.0"
 statrs = "0.7.0"
 
 [badges]
