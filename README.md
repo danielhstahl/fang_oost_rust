@@ -9,4 +9,9 @@
 
 # Fang-Oosterlee Library for Rust
 
-Implements Fang-Oosterlee functions in Rust
+Implements [Fang-Oosterlee](http://ta.twi.tudelft.nl/mf/users/oosterle/oosterlee/COS.pdf) algorithm in Rust.  While the algorithm originally was used for option pricing, it can be used for a variety of uses case.
+
+## Related Crates
+
+* [Option Pricing with Fang Oost](https://crates.io/crates/fang_oost_option)
+* [Distribution Utilities](https://crates.io/crates/cf_dist_utils)
