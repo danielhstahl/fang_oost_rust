@@ -37,13 +37,19 @@ fn compute_dx(x_discrete:usize, x_min:f64, x_max:f64)->f64{
 fn get_u(dx:f64, index:usize)->f64{
     (index as f64)*dx
 }
-/**
-    Function to compute the discrete X range per Fang Oosterlee (2007)
-    @xDiscrete number of sections to parse the X domain into
-    @xMin the minimum of the X domain
-    @xMax the maximum of the X domain
-    @return vector of discrete X values
-*/
+
+/// Returns vector of real (x) domain 
+
+
+/// # Examples
+/// ```
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let x_discrete = 10;
+/// let x_range=fang_oost::compute_x_range(
+///    x_discrete, x_min, x_max
+/// );
+/// ```
 pub fn compute_x_range(x_discrete:usize, x_min:f64, x_max:f64)->Vec<f64>{
     let dx=compute_dx(x_discrete, x_min, x_max);
     (0..x_discrete).into_par_iter().map(|index| x_min+(index as f64)*dx).collect()
