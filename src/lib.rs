@@ -1,3 +1,8 @@
+//! Fang Oosterlee approach for inverting a characteristic function. 
+//! Some useful characteristic functions are provided in the 
+//! [cf_functions](https://crates.io/crates/cf_functions) repository.
+//! [Link to Fang-Oosterlee paper](http://ta.twi.tudelft.nl/mf/users/oosterle/oosterlee/COS.pdf).
+//! 
 extern crate num;
 extern crate num_complex;
 extern crate rayon;
@@ -117,6 +122,24 @@ fn integrate_cf<S>(
     })
 }
 
+/// Returns discretized characteristic function given an analytical characteristic function
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let discrete_cf = fang_oost::get_discrete_cf(
+///     num_u, x_min, x_max, &norm_cf
+/// );
+/// # }
+/// ```
 pub fn get_discrete_cf<T>(
     num_u:usize,
     x_min:f64,
@@ -197,24 +220,36 @@ fn get_expectation_generic_single_element<'a, S>(
 }
 
 
-
-/**
- * Generates expectation over equal mesh
- * in the real domain.  The "type" of
- * expectation is handled by the vk
- * function.  
- * @num_x Number of discrete steps in 
- * the real domain.
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x_min Lower truncation of the real
- * domain.
- * @x_max Upper truncation of the 
- * complex domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
+/// Returns expectation over equal mesh in the real domain
+/// 
+/// # Remarks
+/// 
+/// The "type" of the expecation is handled by the vk function
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// extern crate rayon;
+/// use rayon::prelude::*;
+/// # fn main() {  
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let num_x = 1024;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let result:Vec<f64>=fang_oost::get_expectation_x_real(
+///     num_x, num_u, x_min, 
+///     x_max, &norm_cf, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// ).collect();
+/// # }
+/// ```
 pub fn get_expectation_x_real<T, U>(
     num_x:usize,
     num_u:usize,
@@ -236,23 +271,40 @@ pub fn get_expectation_x_real<T, U>(
         move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
-/**
- * Generates expectation over equal mesh
- * in the real domain.  The "type" of
- * expectation is handled by the vk
- * function.  
- * @num_x Number of discrete steps in 
- * the real domain.
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x_min Lower truncation of the real
- * domain.
- * @x_max Upper truncation of the 
- * complex domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
+/// Returns expectation over equal mesh in the real domain 
+/// where characteristic function depends on initial starting point.
+/// 
+/// # Remarks
+/// 
+/// The "type" of the expecation is handled by the vk function. 
+/// This function is useful for Levy functions since the characteristic function
+/// depends on the initial value of x.  See [fang_oost_option](https://docs.rs/crate/fang_oost_option/0.21.3/source/src/option_pricing.rs)
+/// for an example.
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// extern crate rayon;
+/// use rayon::prelude::*;
+/// # fn main() {  
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let num_x = 1024;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let result:Vec<f64>=fang_oost::get_expectation_x_extended(
+///     num_x, num_u, x_min, 
+///     x_max, &norm_cf, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// ).collect();
+/// # }
+/// ```
 pub fn get_expectation_x_extended<T, U>(
     num_x:usize,
     num_u:usize,
@@ -274,18 +326,36 @@ pub fn get_expectation_x_extended<T, U>(
     )
 }
 
-/**
- * Generates expectation over real domain
- * provided by the input "x".  The "type" 
- * of expectation is handled by the vk
- * function.  
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x Vector of elements in real domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
+/// Returns expectation over mesh supplied by the user 
+/// 
+/// # Remarks
+/// While "x" can be any vector, the endpoints of the vector 
+/// should have a large enough domain for accuracy.  The elements
+/// do not need to be equidistant and accuracy does not depend on
+/// the number of elements in the x domain (just the complex domain).  
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// extern crate rayon;
+/// use rayon::prelude::*;
+/// # fn main() {  
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let x_min = -23.0;
+/// let x = vec![x_min, 3.0, 25.0];
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let result:Vec<f64>=fang_oost::get_expectation_discrete_real(
+///    num_u, &x, &norm_cf, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// ).collect();
+/// # }
+/// ```
 pub fn get_expectation_discrete_real<'a, 'b: 'a, T, U>(
     num_u:usize,
     x:&'b [f64],
@@ -302,18 +372,41 @@ pub fn get_expectation_discrete_real<'a, 'b: 'a, T, U>(
         move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
-/**
- * Generates expectation over real domain
- * provided by the input "x".  The "type" 
- * of expectation is handled by the vk
- * function.  
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x Vector of elements in real domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
+/// Returns expectation over mesh supplied by the user
+/// where characteristic function depends on initial starting point.
+/// 
+/// # Remarks
+/// While "x" can be any vector, the endpoints of the vector 
+/// should have a large enough domain for accuracy.  The elements
+/// do not need to be equidistant and accuracy does not depend on
+/// the number of elements in the x domain (just the complex domain).  
+/// The "type" of the expecation is handled by the vk function. 
+/// This function is useful for Levy functions since the characteristic function
+/// depends on the initial value of x.  See [fang_oost_option](https://docs.rs/crate/fang_oost_option/0.21.3/source/src/option_pricing.rs)
+/// for an example.
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// extern crate rayon;
+/// use rayon::prelude::*;
+/// # fn main() {  
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let x_min = -23.0;
+/// let x = vec![x_min, 3.0, 25.0];
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let result:Vec<f64>=fang_oost::get_expectation_discrete_real(
+///    num_u, &x, &norm_cf, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// ).collect();
+/// # }
+/// ```
 pub fn get_expectation_discrete_extended<'a, 'b: 'a, T, U>(
     num_u:usize,
     x:&'b [f64],
@@ -331,18 +424,30 @@ pub fn get_expectation_discrete_extended<'a, 'b: 'a, T, U>(
     )
 }
 
-/**
- * Generates expectation over single x.  
- * The "type" 
- * of expectation is handled by the vk
- * function.  
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x Vector of elements in real domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
+/// Returns expectation at point supplied by the user 
+/// 
+/// # Remarks
+/// The endpoints of the vector should have a large enough 
+/// domain for accuracy.  
+/// The "type" of the expecation is handled by the vk function. 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let x = 3.0;
+/// let norm_cf_discrete = vec![Complex::new(1.1, 1.0), Complex::new(0.2, 0.3)];
+/// let result=fang_oost::get_expectation_single_element_real(
+///    x_min, x_max, x, &norm_cf_discrete, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// );
+/// # }
+/// ```
 pub fn get_expectation_single_element_real<'a,  U>(
     x_min:f64,
     x_max:f64,
@@ -363,18 +468,33 @@ pub fn get_expectation_single_element_real<'a,  U>(
 }
 
 
-/**
- * Generates expectation over single x.  
- * The "type" 
- * of expectation is handled by the vk
- * function.  
- * @num_u Number of discrete steps in
- * the complex domain.
- * @x Vector of elements in real domain.
- * @fn_inv Characteristic function.
- * @vk Function which controls what kind
- * of expectation (the integrand).
- */
+/// Returns expectation at point supplied by the user 
+/// where characteristic function depends on initial starting point.
+/// # Remarks
+/// The endpoints of the vector should have a large enough 
+/// domain for accuracy.  
+/// The "type" of the expectation is handled by the vk function. 
+/// This function is useful for Levy functions since the characteristic function
+/// depends on the initial value of x.  See [fang_oost_option](https://docs.rs/crate/fang_oost_option/0.21.3/source/src/option_pricing.rs)
+/// for an example. 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let x = 3.0;
+/// let norm_cf_discrete = vec![Complex::new(1.1, 1.0), Complex::new(0.2, 0.3)];
+/// let result=fang_oost::get_expectation_single_element_extended(
+///    x_min, x_max, x, &norm_cf_discrete, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// );
+/// # }
+/// ```
 pub fn get_expectation_single_element_extended<'a, U>(
     x_min:f64,
     x_max:f64,
@@ -394,6 +514,27 @@ pub fn get_expectation_single_element_extended<'a, U>(
     )
 }
 
+/// Returns iterator over density from user supplied domain
+/// 
+/// # Remarks
+/// The endpoints of the x vector should have a large enough 
+/// domain for accuracy.  
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let x = vec![-20.0, 3.0, 25.0];
+/// let num_u = 256;
+/// let mu = 2.0;
+/// let sigma = 5.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let density = fang_oost::get_density(
+///    num_u, &x, &norm_cf
+/// );
+/// # }
+/// ```
 pub fn get_density<'a, 'b: 'a, T>(
     num_u:usize,
     x:&'b [f64],
@@ -409,7 +550,26 @@ pub fn get_density<'a, 'b: 'a, T>(
         move |u, x, _|(u*(x-x_min)).cos()
     )
 }
-
+/// Returns iterator over density with domain created by the function
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let num_x = 1024;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let num_u = 256;
+/// let mu = 2.0;
+/// let sigma = 5.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let density = fang_oost::get_density_x(
+///    num_x, num_u, x_min, x_max, &norm_cf
+/// );
+/// # }
+/// ```
 pub fn get_density_x<T>(
     num_x:usize,
     num_u:usize,
@@ -506,6 +666,7 @@ mod tests {
         }).collect();
         
         let result:Vec<f64>=get_expectation_x_real(num_x, num_u, x_min, x_max, norm_cf, |u, x, k|{
+            
             vk_cdf(u, x, x_min, k)
         }).collect();
         for (index, x) in ref_normal.iter().enumerate(){
