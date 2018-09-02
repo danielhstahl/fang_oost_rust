@@ -28,14 +28,24 @@ fn compute_dx(x_discrete:usize, x_min:f64, x_max:f64)->f64{
     (x_max-x_min)/((x_discrete as f64)-1.0)
 }
 
-/**
-    Function to compute the discrete U.  The operation is cheap and takes less ram than simply using the computeURange function to create a vector.  Note that "uMin" is always zero and hence is unecessary.  This can (should?) be simply an implementation of a generic "getNode" function but is broken into two functions to make it explicit and be more closely aligned with the Fang Oosterlee paper.
-    @du the difference between the nodes in U
-    @index the location of the node
-    @return location of discrete U
-*/
-fn get_u(dx:f64, index:usize)->f64{
-    (index as f64)*dx
+/// Function to compute the discrete U. The operation is cheap 
+/// and takes less ram than simply using the computeURange 
+/// function to create a vector.  Note that "uMin" is always 
+/// zero and hence is unecessary.  This can (should?) be 
+/// simply an implementation of a generic "getNode" function 
+/// but is broken into two functions to make it explicit and be 
+/// more closely aligned with the Fang Oosterlee paper.
+/// 
+/// # Examples
+/// ```
+/// let du = 0.5;
+/// let index = 25;
+/// let u=fang_oost::get_u(
+///    du, index
+/// );
+/// ```
+pub fn get_u(du:f64, index:usize)->f64{
+    (index as f64)*du
 }
 
 /// Returns vector of real (x) domain 
@@ -66,13 +76,19 @@ fn get_x(x_min:f64, dx: f64, index:usize)->f64{
     x_min+(index as f64)*dx
 }
 
-/**
-    Function to compute the difference in successive U nodes.  This can feed into the "getU" function.  Note that this depends on X: the U and X domains are not "independent".
-    @xMin the minimum of the X domain
-    @xMax the maximum of the X domain
-    @return the difference between successive U nodes
-*/
-fn compute_du(x_min:f64, x_max:f64)->f64{
+/// Function to compute the difference in successive U nodes.  
+/// This can feed into the "getU" function.  Note that this 
+/// depends on X: the U and X domains are not "independent".
+/// 
+/// # Examples
+/// ```
+/// let x_min=-20.0;
+/// let x_max=20.0;
+/// let du=fang_oost::compute_du(
+///    x_min, x_max
+/// );
+/// ```
+pub fn compute_du(x_min:f64, x_max:f64)->f64{
     PI/(x_max-x_min)
 }
 /**
@@ -83,11 +99,16 @@ fn compute_cp(du:f64)->f64{
     (2.0*du)/PI
 }
 
-/**
-    Helper function to get complex u
-    @u The real valued complex component.  Can be computed using getU(du, index)
-*/
-fn get_complex_u(u:f64)->Complex<f64>{
+/// Helper function to get complex u
+/// 
+/// # Examples
+/// ```
+/// let u_real=2.0;
+/// let u=fang_oost::get_complex_u(
+///     u_real
+/// );
+/// ```
+pub fn get_complex_u(u:f64)->Complex<f64>{
     Complex::<f64>::new(0.0, u)
 }
 
