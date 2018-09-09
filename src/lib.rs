@@ -48,7 +48,7 @@ pub fn get_u(du:f64, index:usize)->f64{
     (index as f64)*du
 }
 
-/// Returns vector of real (x) domain 
+/// Returns iterator over real (x) domain 
 
 
 /// # Examples
@@ -62,7 +62,7 @@ pub fn get_u(du:f64, index:usize)->f64{
 /// ```
 pub fn get_x_domain(x_discrete:usize, x_min:f64, x_max:f64)->impl IndexedParallelIterator<Item = f64>{
     let dx=compute_dx(x_discrete, x_min, x_max);
-    (0..x_discrete).into_par_iter().map(move |index| x_min+(index as f64)*dx)//.collect()
+    (0..x_discrete).into_par_iter().map(move |index| x_min+(index as f64)*dx)
 }
 
 /**
