@@ -188,6 +188,42 @@ pub fn get_discrete_cf<T>(
     }).collect()
 }
 
+/// Returns discretized characteristic function given an iterator over a CF
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// extern crate rayon;
+/// use num_complex::Complex;
+/// use rayon::prelude::*;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let discrete_cf = fang_oost::get_discrete_cf_iterator(
+///     num_u, x_min, x_max, 
+///     fang_oost::get_u_domain(num_u, x_min, x_max)
+///         .map(|u|norm_cf(&u))
+/// );
+/// # }
+/// ```
+pub fn get_discrete_cf_iterator(
+    num_u:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv_iterator:impl IndexedParallelIterator<Item=Complex<f64>>
+)->Vec<Complex<f64>>
+{
+    let du=compute_du(x_min, x_max);
+    let cp=compute_cp(du);
+    get_u_domain(num_u, x_min, x_max).zip(fn_inv_iterator).map(|(u, fn_inv_element)|{
+        fn_inv_element*(-u*x_min).exp()*cp  
+    }).collect()
+}
+
 
 fn get_expectation_generic_x<T, S>(
     num_x:usize,
@@ -762,6 +798,31 @@ mod tests {
         }).collect();
     
         let my_inverse:Vec<f64>=get_density_x_discrete_cf(num_x,  x_min, x_max, &norm_cf_discrete).collect();
+        
+        for (index, x) in ref_normal.iter().enumerate(){
+            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
+        }
+    }
+    #[test]
+    fn test_compute_inv_discrete_with_iterator(){
+        let mu=2.0;
+        let sigma=1.0;
+        let num_x=5;
+        let num_u=256;
+        let x_min=-3.0;
+        let x_max=7.0;
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+        let norm_cf_discrete_iterator = get_discrete_cf_iterator(
+            num_u, 
+            x_min,
+            x_max,
+            get_u_domain(num_u, x_min, x_max).map(|u|norm_cf(&u))
+        );
+        let ref_normal:Vec<f64>=get_x_domain(num_x, x_min, x_max).map(|x|{
+            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
+        }).collect();
+    
+        let my_inverse:Vec<f64>=get_density_x_discrete_cf(num_x,  x_min, x_max, &norm_cf_discrete_iterator).collect();
         
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
