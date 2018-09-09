@@ -48,22 +48,7 @@ pub fn get_u(du:f64, index:usize)->f64{
     (index as f64)*du
 }
 
-/// Returns iterator over real (x) domain 
 
-
-/// # Examples
-/// ```
-/// let x_min = -20.0;
-/// let x_max = 25.0;
-/// let x_discrete = 10;
-/// let x_range=fang_oost::get_x_domain(
-///    x_discrete, x_min, x_max
-/// );
-/// ```
-pub fn get_x_domain(x_discrete:usize, x_min:f64, x_max:f64)->impl IndexedParallelIterator<Item = f64>{
-    let dx=compute_dx(x_discrete, x_min, x_max);
-    (0..x_discrete).into_par_iter().map(move |index| x_min+(index as f64)*dx)
-}
 
 /**
     Function to compute the discrete X.  The operation is cheap and takes less ram than simply using the computeXRange function to create a vector
@@ -75,6 +60,23 @@ pub fn get_x_domain(x_discrete:usize, x_min:f64, x_max:f64)->impl IndexedParalle
 fn get_x(x_min:f64, dx: f64, index:usize)->f64{
     x_min+(index as f64)*dx
 }
+
+/// Returns iterator over real (x) domain 
+/// # Examples
+/// ```
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let x_discrete = 10;
+/// let x_range=fang_oost::get_x_domain(
+///    x_discrete, x_min, x_max
+/// );
+/// ```
+pub fn get_x_domain(x_discrete:usize, x_min:f64, x_max:f64)->impl IndexedParallelIterator<Item = f64>{
+    let dx=compute_dx(x_discrete, x_min, x_max);
+    (0..x_discrete).into_par_iter().map(move |index| get_x(x_min, dx, index))
+}
+
+
 
 /// Function to compute the difference in successive U nodes.  
 /// This can feed into the "getU" function.  Note that this 
@@ -195,7 +197,7 @@ fn get_expectation_generic_x<T, S>(
     where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send,
     S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    let dx=compute_dx(num_x, x_min, x_max);
+    //let dx=compute_dx(num_x, x_min, x_max);
     let du=compute_du(x_min, x_max);
     //get discrete cf
     let cf_discrete=get_discrete_cf(
@@ -203,9 +205,23 @@ fn get_expectation_generic_x<T, S>(
         x_min, x_max, fn_inv
     );
     //for every x, integrate over discrete cf
-    (0..num_x).into_par_iter().map(move |x_index|{
-        let x=get_x(x_min, dx, x_index);
+    get_x_domain(num_x, x_min, x_max).map(move |x|{
         integrate_cf(&cf_discrete, x, du, &convolute)
+    })
+}
+fn get_expectation_generic_x_discrete_cf<'a, 'b: 'a, S>(
+    num_x:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv_discrete:&'b [Complex<f64>],
+    convolute:S
+)->impl IndexedParallelIterator<Item = f64>+'a
+    where S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+{
+    let du=compute_du(x_min, x_max);
+    //for every x, integrate over discrete cf
+    get_x_domain(num_x, x_min, x_max).map(move |x|{
+        integrate_cf(fn_inv_discrete, x, du, &convolute)
     })
 }
 fn get_expectation_generic_domain<'a, 'b: 'a, T, S>(
@@ -494,6 +510,46 @@ pub fn get_expectation_single_element_real<'a,  U>(
     )
 }
 
+/// Returns expectation at multiple points for discrete cf
+/// 
+/// # Remarks
+/// The endpoints of the vector should have a large enough 
+/// domain for accuracy.  
+/// The "type" of the expecation is handled by the vk function. 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let num_x = 25;
+/// let norm_cf_discrete = vec![Complex::new(1.1, 1.0), Complex::new(0.2, 0.3)];
+/// let result=fang_oost::get_expectation_real_discrete_cf(
+///    num_x, x_min, x_max, &norm_cf_discrete, 
+///     |u, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///     }
+/// );
+/// # }
+/// ```
+pub fn get_expectation_real_discrete_cf<'a, 'b : 'a,  U>(
+    num_x:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv_discrete:&'b [Complex<f64>],
+    vk:U
+)->impl IndexedParallelIterator<Item = f64>+'a
+    where 
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+{
+    get_expectation_generic_x_discrete_cf(
+        num_x, x_min, x_max, 
+        fn_inv_discrete, move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
+    )
+}
+
 
 /// Returns expectation at point supplied by the user 
 /// where characteristic function depends on initial starting point.
@@ -616,6 +672,37 @@ pub fn get_density_x<T>(
     )
 }
 
+/// Returns iterator over density with domain created by the function
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main() {  
+/// let num_x = 1024;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let discrete_cf = vec![Complex::new(1.0, 1.0), Complex::new(-1.0, 1.0)];
+/// let density = fang_oost::get_density_x_discrete_cf(
+///    num_x, x_min, x_max, &discrete_cf
+/// );
+/// # }
+/// ```
+pub fn get_density_x_discrete_cf<'a, 'b :'a>(
+    num_x:usize,
+    x_min:f64,
+    x_max:f64,
+    fn_inv_discrete:&'b [Complex<f64>]
+)->impl IndexedParallelIterator<Item = f64>+'a
+{
+    get_expectation_real_discrete_cf(
+        num_x, x_min, x_max, 
+        fn_inv_discrete,  
+        move |u, x, _|(u*(x-x_min)).cos()
+    )
+}
+
 
 
 
@@ -650,6 +737,28 @@ mod tests {
         }).collect();
         
         let my_inverse:Vec<f64>=get_density_x(num_x, num_u, x_min, x_max, norm_cf).collect();
+        
+        for (index, x) in ref_normal.iter().enumerate(){
+            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
+        }
+    }
+
+    #[test]
+    fn test_compute_inv_discrete(){
+        let mu=2.0;
+        let sigma=1.0;
+        let num_x=5;
+        let num_u=256;
+        let x_min=-3.0;
+        let x_max=7.0;
+        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+        let norm_cf_discrete=get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+
+        let ref_normal:Vec<f64>=get_x_domain(num_x, x_min, x_max).map(|x|{
+            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
+        }).collect();
+    
+        let my_inverse:Vec<f64>=get_density_x_discrete_cf(num_x,  x_min, x_max, &norm_cf_discrete).collect();
         
         for (index, x) in ref_normal.iter().enumerate(){
             assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
