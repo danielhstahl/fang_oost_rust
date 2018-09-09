@@ -81,16 +81,7 @@ pub fn get_x_domain(x_discrete:usize, x_min:f64, x_max:f64)->impl IndexedParalle
 /// Function to compute the difference in successive U nodes.  
 /// This can feed into the "getU" function.  Note that this 
 /// depends on X: the U and X domains are not "independent".
-/// 
-/// # Examples
-/// ```
-/// let x_min=-20.0;
-/// let x_max=20.0;
-/// let du=fang_oost::compute_du(
-///    x_min, x_max
-/// );
-/// ```
-pub fn compute_du(x_min:f64, x_max:f64)->f64{
+fn compute_du(x_min:f64, x_max:f64)->f64{
     PI/(x_max-x_min)
 }
 /**
@@ -101,17 +92,30 @@ fn compute_cp(du:f64)->f64{
     (2.0*du)/PI
 }
 
-/// Helper function to get complex u
+fn get_complex_u(u:f64)->Complex<f64>{
+    Complex::<f64>::new(0.0, u)
+}
+
+/// Helper function to get complex u domain
 /// 
 /// # Examples
 /// ```
-/// let u_real=2.0;
-/// let u=fang_oost::get_complex_u(
-///     u_real
+/// let u_discrete = 10;
+/// let x_min = -20.0;
+/// let x_max = 20.0;
+/// let u_domain=fang_oost::get_u_domain(
+///     u_discrete,
+///     x_min,
+///     x_max
 /// );
 /// ```
-pub fn get_complex_u(u:f64)->Complex<f64>{
-    Complex::<f64>::new(0.0, u)
+pub fn get_u_domain(
+    u_discrete:usize, x_min:f64, x_max:f64
+)->impl IndexedParallelIterator<Item=Complex<f64> > {
+    let du=compute_du(x_min, x_max);
+    (0..u_discrete)
+        .into_par_iter()
+        .map(move |index| get_complex_u(get_u(du, index)))
 }
 
 /*Using X only makes sense for 
@@ -179,8 +183,7 @@ pub fn get_discrete_cf<T>(
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
-    (0..num_u).into_par_iter().map(|index|{
-        let u=get_complex_u(get_u(du, index));
+    get_u_domain(num_u, x_min, x_max).map(|u|{
         fn_inv(&u)*(-u*x_min).exp()*cp //potentially expensive...want to perform this once...which means that we then need to actually make this into a vector not an iterator.  
     }).collect()
 }
