@@ -56,13 +56,13 @@ pub fn get_u(du:f64, index:usize)->f64{
 /// let x_min = -20.0;
 /// let x_max = 25.0;
 /// let x_discrete = 10;
-/// let x_range=fang_oost::compute_x_range(
+/// let x_range=fang_oost::get_x_domain(
 ///    x_discrete, x_min, x_max
 /// );
 /// ```
-pub fn compute_x_range(x_discrete:usize, x_min:f64, x_max:f64)->Vec<f64>{
+pub fn get_x_domain(x_discrete:usize, x_min:f64, x_max:f64)->impl IndexedParallelIterator<Item = f64>{
     let dx=compute_dx(x_discrete, x_min, x_max);
-    (0..x_discrete).into_par_iter().map(|index| x_min+(index as f64)*dx).collect()
+    (0..x_discrete).into_par_iter().map(move |index| x_min+(index as f64)*dx)//.collect()
 }
 
 /**
@@ -628,9 +628,9 @@ mod tests {
         if k==0{x-a} else { ((x-a)*u).sin()/u }
     }
     #[test]
-    fn test_compute_x_range(){
+    fn test_get_x_domain(){
         assert_eq!(
-            compute_x_range(5, 0.0, 1.0),
+            get_x_domain(5, 0.0, 1.0).collect::<Vec<f64>>(),
             vec![0.0, 0.25, 0.5, 0.75, 1.0]
         )
     }
@@ -645,7 +645,7 @@ mod tests {
         let x_max=7.0;
         let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 
-        let ref_normal:Vec<f64>=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
+        let ref_normal:Vec<f64>=get_x_domain(num_x, x_min, x_max).map(|x|{
             (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
         
@@ -666,7 +666,7 @@ mod tests {
         let x_max=7.0;
         let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 
-        let x_range=compute_x_range(num_x, x_min, x_max);
+        let x_range:Vec<f64>=get_x_domain(num_x, x_min, x_max).collect();
         let ref_normal:Vec<f64>=x_range.iter().map(|x|{
             (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
@@ -688,7 +688,7 @@ mod tests {
         let x_min=-20.0;
         let x_max=25.0;
         let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-        let ref_normal:Vec<f64>=compute_x_range(num_x, x_min, x_max).iter().map(|x|{
+        let ref_normal:Vec<f64>=get_x_domain(num_x, x_min, x_max).map(|x|{
             0.5*statrs::function::erf::erfc(-((x-mu)/sigma)/(2.0 as f64).sqrt())
         }).collect();
         
