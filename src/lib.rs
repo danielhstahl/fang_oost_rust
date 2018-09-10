@@ -130,7 +130,6 @@ fn adjust_index(index:usize)->f64
 {
     if index==0{0.5} else {1.0}
 }
-/**TODO!! check if u_incr has to be real or not*/
 fn integrate_cf<S>(
     cf_iterator:impl IndexedParallelIterator<Item = (Complex<f64>, Complex<f64>) >, 
     x:f64,
@@ -153,42 +152,65 @@ fn adjust_cf(
 }
 
 
-/// Returns discretized characteristic function given an iterator over a CF
-/// # Examples
-/// ```
-/// extern crate num_complex;
-/// extern crate rayon;
-/// use num_complex::Complex;
-/// use rayon::prelude::*;
-/// extern crate fang_oost;
-/// # fn main() {  
-/// let mu = 2.0;
-/// let sigma:f64 = 5.0;
-/// let num_u = 256;
-/// let x_min = -20.0;
-/// let x_max = 25.0;
-/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-/// let discrete_cf = fang_oost::get_discrete_cf_iterator(
-///     num_u, x_min, x_max, 
-///     fang_oost::get_u_domain(num_u, x_min, x_max)
-///         .map(|u|norm_cf(&u))
-/// );
-/// # }
-/// ```
-pub fn get_discrete_cf_iterator(
-    num_u:usize,
+fn get_discrete_cf_iterator<'a, 'b:'a>(
     x_min:f64,
     x_max:f64,
-    fn_inv_iterator:impl IndexedParallelIterator<Item = Complex<f64> >+std::marker::Sync+std::marker::Send
-)->impl IndexedParallelIterator<Item = (Complex<f64>, Complex<f64>)>+std::marker::Sync+std::marker::Send
+    fn_inv_vec:&'b [Complex<f64>]
+)->impl IndexedParallelIterator<Item = (Complex<f64>, Complex<f64>)>+std::marker::Sync+std::marker::Send+'a
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
-    get_u_domain(num_u, x_min, x_max).zip(fn_inv_iterator).map(|(u, fn_inv_element)|{
-        adjust_cf(&fn_inv_element, u, x_min, cp)
-    })
+    get_u_domain(fn_inv_vec.len(), x_min, x_max)
+        .zip(fn_inv_vec)
+        .map(move |(u, fn_inv_element)|{
+            adjust_cf(&fn_inv_element, u, x_min, cp)
+        })
+}
+/// Returns "raw" discrete cf
+/// 
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// use num_complex::Complex;
+/// extern crate fang_oost;
+/// # fn main(){
+/// let num_u = 256;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let mu=2.0;
+/// let sigma:f64=5.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+/// # }
+/// ```
+pub fn get_discrete_cf<T>(
+    num_u:usize,
+    x_min:f64, 
+    x_max:f64,
+    cf_fn:T
+)->Vec<Complex<f64>>
+    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send
+{
+    get_u_domain(num_u, x_min, x_max).map(|u|cf_fn(&u)).collect::<Vec<_>>()
 }
 
+fn get_expectation_generic_single_element<S>(
+    x_min:f64,
+    x_max:f64,
+    x:f64,
+    fn_inv_vec:&[Complex<f64>],
+    convolute:S
+)-> f64
+    where 
+    S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
+{
+    integrate_cf(
+        get_discrete_cf_iterator(
+            x_min, x_max, fn_inv_vec
+        ), 
+        x, &convolute
+    )
+}
 
 /**All generic functions will be provided iterators over x 
  * and iterators over RAW characteristic function. 
@@ -202,39 +224,23 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
     x_domain_iterator:T,
     fn_inv_vec:&'b [Complex<f64>],
     convolute:S
-)->impl IndexedParallelIterator<Item = f64>+'a+std::marker::Sync+std::marker::Send
+)->impl IndexedParallelIterator<Item = f64>+'a+std::marker::Sync+std::marker::Send+'a
     where 
     S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send+'a,
     T: IndexedParallelIterator<Item = f64>+std::marker::Sync+std::marker::Send+'a
 {
-    //this converts raw cf to cf that can be integrated over
-    let cf_iterator=fn_inv_vec.par_iter();
-    let cf_and_u_iterator=get_discrete_cf_iterator(
-        fn_inv_vec.len(), x_min, 
-        x_max, cf_iterator
-    );
     //for every x, integrate over discrete cf
+    //NOTE that I create a new iterator for every x
+    //this MAY be expensive (I'm not sure)
     x_domain_iterator.map(move |x|{
-        integrate_cf(cf_and_u_iterator, x, &convolute)
+        get_expectation_generic_single_element(
+            x_min,
+            x_max, 
+            x, 
+            fn_inv_vec,
+            &convolute
+        )
     })
-}
-
-fn get_expectation_generic_single_element<'a, S>(
-    x_min:f64,
-    x_max:f64,
-    x:f64,
-    fn_inv_vec:&[Complex<f64>],
-    convolute:S
-)-> f64
-    where 
-    S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
-{
-    let cf_and_u_iterator=get_discrete_cf_iterator(
-        fn_inv_vec.len(), x_min, 
-        x_max, fn_inv_vec.par_iter()
-    );
-    //get discrete cf
-    integrate_cf(cf_and_u_iterator, x, &convolute)
 }
 
 
@@ -247,10 +253,8 @@ fn get_expectation_generic_single_element<'a, S>(
 /// # Examples
 /// ```
 /// extern crate num_complex;
-/// use num_complex::Complex;
 /// extern crate fang_oost;
-/// extern crate rayon;
-/// use rayon::prelude::*;
+/// use num_complex::Complex;
 /// # fn main() {  
 /// let mu = 2.0;
 /// let sigma:f64 = 5.0;
@@ -258,14 +262,19 @@ fn get_expectation_generic_single_element<'a, S>(
 /// let num_x = 1024;
 /// let x_min = -20.0;
 /// let x_max = 25.0;
+/// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-/// let result:Vec<f64>=fang_oost::get_expectation_real(
-///     num_x, num_u, x_min, 
-///     x_max, &norm_cf, 
+/// let cf_discrete=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+/// let result=fang_oost::get_expectation_real(
+///     x_min, 
+///     x_max, 
+///     x_domain,
+///     &cf_discrete, 
 ///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
 ///     }
-/// ).collect();
+/// );
+/// //can then call "collect" if a vector is desired
 /// # }
 /// ```
 pub fn get_expectation_real<'a, 'b:'a, S, U>(
@@ -288,7 +297,8 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
     )
 }
 /// Returns expectation over equal mesh in the real domain 
-/// where characteristic function depends on initial starting point.
+/// where characteristic function depends on initial starting point 
+/// of a Levy process.
 /// 
 /// # Remarks
 /// 
@@ -300,10 +310,8 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 /// # Examples
 /// ```
 /// extern crate num_complex;
-/// use num_complex::Complex;
 /// extern crate fang_oost;
-/// extern crate rayon;
-/// use rayon::prelude::*;
+/// use num_complex::Complex;
 /// # fn main() {  
 /// let mu = 2.0;
 /// let sigma:f64 = 5.0;
@@ -312,18 +320,21 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 /// let x_min = -20.0;
 /// let x_max = 25.0;
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-/// let result:Vec<f64>=fang_oost::get_expectation_extended(
-///     num_x, num_u, x_min, 
-///     x_max, &norm_cf, 
+/// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
+/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+/// let result=fang_oost::get_expectation_extended(
+///     x_min, 
+///     x_max, 
+///     x_domain,
+///     &discrete_cf, 
 ///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
 ///     }
-/// ).collect();
+/// );
+/// //can then call "collect" if a vector is desired
 /// # }
 /// ```
 pub fn get_expectation_extended<'a, 'b:'a, S, U>(
-    num_x:usize,
-    num_u:usize,
     x_min:f64,
     x_max:f64,
     x_domain_iterator:S, 
@@ -332,11 +343,8 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
 )->impl IndexedParallelIterator<Item = f64>+'a
     where 
     S: IndexedParallelIterator<Item = f64>+std::marker::Sync+'b,
-   // T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'b,
     U:Fn(&Complex<f64>, f64, usize)->f64+std::marker::Sync+std::marker::Send+'b
 {
-    //let discrete_cf:Vec<Complex<f64>>=get_u_domain(num_u, x_min, x_max)
-      //  .map(|u|fn_inv(&u)).collect(); //collected since the expensive part is iterating over fn_inv, creating the vector is relatively cheap
     get_expectation_generic(
         x_min,
         x_max, 
@@ -355,17 +363,21 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
 /// # Examples
 /// ```
 /// extern crate num_complex;
-/// use num_complex::Complex;
 /// extern crate fang_oost;
+/// use num_complex::Complex;
 /// # fn main() {  
 /// let x_min = -20.0;
 /// let x_max = 25.0;
 /// let x = 3.0;
-/// let norm_cf_discrete = vec![Complex::new(1.1, 1.0), Complex::new(0.2, 0.3)];
+/// let mu=2.0;
+/// let sigma:f64=5.0;
+/// let num_u=128;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
 /// let result=fang_oost::get_expectation_single_element_real(
-///    x_min, x_max, x, &norm_cf_discrete, 
+///    x_min, x_max, x, &discrete_cf, 
 ///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
 ///     }
 /// );
 /// # }
@@ -399,26 +411,30 @@ pub fn get_expectation_single_element_real<'a,  U>(
 /// # Examples
 /// ```
 /// extern crate num_complex;
-/// use num_complex::Complex;
 /// extern crate fang_oost;
+/// use num_complex::Complex;
 /// # fn main() {  
 /// let x_min = -20.0;
 /// let x_max = 25.0;
 /// let x = 3.0;
-/// let norm_cf_discrete = vec![Complex::new(1.1, 1.0), Complex::new(0.2, 0.3)];
+/// let mu=2.0;
+/// let sigma:f64=5.0;
+/// let num_u=128;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
 /// let result=fang_oost::get_expectation_single_element_extended(
-///    x_min, x_max, x, &norm_cf_discrete, 
+///     x_min, x_max, x, &discrete_cf, 
 ///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u).sin()/u }
+///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
 ///     }
 /// );
 /// # }
 /// ```
-pub fn get_expectation_single_element_extended<'a,  U>(
+pub fn get_expectation_single_element_extended<'a,  'b:'a, U>(
     x_min:f64,
     x_max:f64,
     x:f64,
-    fn_inv_discrete:&[Complex<f64>],
+    fn_inv_discrete:&'b [Complex<f64>],
     vk:U
 )->f64
     where 
@@ -427,7 +443,7 @@ pub fn get_expectation_single_element_extended<'a,  U>(
     get_expectation_generic_single_element(
         x_min, x_max, x, 
         fn_inv_discrete, 
-        move |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
+        |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
     )
 }
 /// Returns iterator over density with domain created by the function
@@ -435,19 +451,25 @@ pub fn get_expectation_single_element_extended<'a,  U>(
 /// # Examples
 /// ```
 /// extern crate num_complex;
-/// use num_complex::Complex;
 /// extern crate fang_oost;
+/// use num_complex::Complex;
 /// # fn main() {  
 /// let num_x = 1024;
+/// let num_u = 256;
 /// let x_min = -20.0;
 /// let x_max = 25.0;
-/// let discrete_cf = vec![Complex::new(1.0, 1.0), Complex::new(-1.0, 1.0)];
-/// let density = fang_oost::get_density_x_discrete_cf(
-///    num_x, x_min, x_max, &discrete_cf
+/// let mu=2.0;
+/// let sigma:f64=5.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
+/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+/// let density = fang_oost::get_density(
+///    x_min, x_max, x_domain, &discrete_cf
 /// );
+/// //can then call "collect" if a vector is desired
 /// # }
 /// ```
-pub fn get_density_discrete_cf<'a, 'b :'a, S>(
+pub fn get_density<'a, 'b :'a, S>(
     x_min:f64,
     x_max:f64,
     x_domain_iterator:S,
@@ -462,47 +484,6 @@ where
         move |u, x, _|(u.im*(x-x_min)).cos()
     )
 }
-/// Returns iterator over density from user supplied domain
-/// 
-/// # Remarks
-/// The endpoints of the x vector should have a large enough 
-/// domain for accuracy.  
-/// # Examples
-/// ```
-/// extern crate num_complex;
-/// use num_complex::Complex;
-/// extern crate fang_oost;
-/// # fn main() {  
-/// let x = vec![-20.0, 3.0, 25.0];
-/// let num_u = 256;
-/// let mu = 2.0;
-/// let sigma = 5.0;
-/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-/// let density = fang_oost::get_density(
-///    num_u, &x, &norm_cf
-/// );
-/// # }
-/// ```
-pub fn get_density<'a, 'b: 'a, T, S>(
-    num_u:usize,
-    x_min:f64,
-    x_max:f64,
-    x_domain_iterator:S,
-    fn_inv:T
-)->impl IndexedParallelIterator<Item = f64>+'a
-    where T:Fn(&Complex<f64>)->Complex<f64>+std::marker::Sync+std::marker::Send+'a,
-    S: IndexedParallelIterator<Item = f64>+std::marker::Sync+'b,
-{
-    let discrete_cf:Vec<Complex<f64>>=get_u_domain(num_u, x_min, x_max)
-        .map(|u|fn_inv(&u)).collect(); //make into vector, becuase this is the expensive part
-    get_density_discrete_cf(
-        x_min,
-        x_max,
-        x_domain_iterator,
-        &discrete_cf
-    )
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -530,38 +511,13 @@ mod tests {
         let x_max=7.0;
         let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
         let my_x_domain=get_x_domain(num_x, x_min, x_max);
-        let ref_normal:Vec<f64>=my_x_domain.map(|x|{
+        let ref_normal:Vec<f64>=get_x_domain(num_x, x_min, x_max).map(|x|{
             (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
         }).collect();
-        
-        let my_inverse:Vec<f64>=get_density(num_u, 
+        let discrete_cf=get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+        let my_inverse:Vec<f64>=get_density(
             x_min, x_max, 
-            my_x_domain, norm_cf
-        ).collect();
-        
-        for (index, x) in ref_normal.iter().enumerate(){
-            assert_abs_diff_eq!(*x, my_inverse[index], epsilon=0.001);
-        }
-    }
-
-    #[test]
-    fn test_compute_inv_discrete(){
-        let mu=2.0;
-        let sigma=1.0;
-        let num_x=5;
-        let num_u=256;
-        let x_min=-3.0;
-        let x_max=7.0;
-        let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-        let norm_cf_discrete:Vec<Complex<f64>>=get_u_domain(num_u, x_min, x_max).map(|u|norm_cf(&u)).collect();
-        let x_domain=get_x_domain(num_x, x_min, x_max);
-        let ref_normal:Vec<f64>=x_domain.map(|x|{
-            (-(x-mu).powi(2)/(2.0*sigma*sigma)).exp()/(sigma*(2.0*PI).sqrt())
-        }).collect();
-    
-        let my_inverse:Vec<f64>=get_density_discrete_cf(
-            x_min, x_max,  
-            x_domain, &norm_cf_discrete
+            my_x_domain, &discrete_cf
         ).collect();
         
         for (index, x) in ref_normal.iter().enumerate(){
@@ -581,11 +537,11 @@ mod tests {
         let x_max=25.0;
         let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
         let x_domain=get_x_domain(num_x, x_min, x_max);
-        let ref_normal:Vec<f64>=x_domain.map(|x|{
+        let ref_normal:Vec<f64>=get_x_domain(num_x, x_min, x_max).map(|x|{
             0.5*statrs::function::erf::erfc(-((x-mu)/sigma)/(2.0 as f64).sqrt())
         }).collect();
         
-        let discrete_cf:Vec<Complex<f64>>=get_u_domain(num_u, x_min, x_max).map(|u|norm_cf(&u)).collect();
+        let discrete_cf=get_discrete_cf(num_u, x_min, x_max, &norm_cf);
         let result:Vec<f64>=get_expectation_real(
             x_min, x_max, 
             x_domain, &discrete_cf, 
@@ -607,7 +563,7 @@ mod tests {
         let x_min=-20.0;
         let x_max=25.0;
         let norm_cf=|u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-        let discrete_cf:Vec<Complex<f64>>=get_u_domain(num_u, x_min, x_max).map(|u|norm_cf(&u)).collect();
+        let discrete_cf=get_discrete_cf(num_u, x_min, x_max, &norm_cf);
         let result:f64=get_expectation_single_element_real(
             x_min, x_max, 2.0, 
             &discrete_cf, 
@@ -618,5 +574,4 @@ mod tests {
         assert_abs_diff_eq!(0.5, result, epsilon=0.001);
 
     }
-
 }
