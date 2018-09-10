@@ -374,12 +374,12 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
 /// let num_u=128;
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result=fang_oost::get_expectation_single_element_real(
+/// /*let result=fang_oost::get_expectation_single_element_real(
 ///    x_min, x_max, x, &discrete_cf, 
 ///     |u, x, k|{
 ///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
 ///     }
-/// );
+/// );*/
 /// # }
 /// ```
 pub fn get_expectation_single_element_real<'a,  U>(
@@ -422,12 +422,12 @@ pub fn get_expectation_single_element_real<'a,  U>(
 /// let num_u=128;
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result=fang_oost::get_expectation_single_element_extended(
+/// /*let result=fang_oost::get_expectation_single_element_extended(
 ///     x_min, x_max, x, &discrete_cf, 
 ///     |u, x, k|{
 ///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
 ///     }
-/// );
+/// );*/
 /// # }
 /// ```
 pub fn get_expectation_single_element_extended<'a,  'b:'a, U>(
