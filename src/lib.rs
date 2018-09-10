@@ -292,7 +292,7 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
         x_min,
         x_max, 
         x_domain_iterator, 
-        &discrete_cf,
+        discrete_cf,
         move |cf, x, u, i| convolute_real(cf, x, u, i, &vk)
     )
 }
@@ -349,7 +349,7 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
         x_min,
         x_max, 
         x_domain_iterator, 
-        &discrete_cf,
+        discrete_cf,
         move |cf, x, u, i| convolute_extended(cf, x, u, i, &vk)
     )
 }
