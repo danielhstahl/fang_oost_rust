@@ -156,7 +156,6 @@ fn adjust_cf(
     fn_inv_increment*(-u*x_min).exp()*cp
 }
 
-//cheaper to create a vector?  Lets try
 fn get_discrete_cf_adjusted(
     x_min:f64,
     x_max:f64,
@@ -165,7 +164,7 @@ fn get_discrete_cf_adjusted(
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
-    get_u_domain(fn_inv_vec.len(), x_min, x_max) //do I need the u domain?
+    get_u_domain(fn_inv_vec.len(), x_min, x_max) 
         .zip(fn_inv_vec)
         .map(move |(u, fn_inv_element)|{
             adjust_cf(&fn_inv_element, u, x_min, cp)
@@ -261,6 +260,8 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
 /// extern crate num_complex;
 /// extern crate fang_oost;
 /// use num_complex::Complex;
+/// extern crate rayon;
+/// use rayon::prelude::*;
 /// # fn main() {  
 /// let mu = 2.0;
 /// let sigma:f64 = 5.0;
@@ -271,7 +272,7 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let cf_discrete=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result=fang_oost::get_expectation_real(
+/// let result:Vec<f64>=fang_oost::get_expectation_real(
 ///     x_min, 
 ///     x_max, 
 ///     x_domain,
@@ -279,8 +280,7 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
 ///     |u_im, x, k|{
 ///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im}
 ///     }
-/// );
-/// //can then call "collect" if a vector is desired
+/// ).collect();
 /// # }
 /// ```
 pub fn get_expectation_real<'a, 'b:'a, S, U>(
@@ -318,6 +318,8 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 /// extern crate num_complex;
 /// extern crate fang_oost;
 /// use num_complex::Complex;
+/// extern crate rayon;
+/// use rayon::prelude::*;
 /// # fn main() {  
 /// let mu = 2.0;
 /// let sigma:f64 = 5.0;
@@ -328,7 +330,7 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result=fang_oost::get_expectation_extended(
+/// let result:Vec<f64>=fang_oost::get_expectation_extended(
 ///     x_min, 
 ///     x_max, 
 ///     x_domain,
@@ -336,8 +338,7 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 ///     |u_im, x, k|{
 ///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
 ///     }
-/// );
-/// //can then call "collect" if a vector is desired
+/// ).collect();
 /// # }
 /// ```
 pub fn get_expectation_extended<'a, 'b:'a, S, U>(
@@ -380,12 +381,12 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
 /// let num_u=128;
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// /*let result=fang_oost::get_expectation_single_element_real(
+/// let result=fang_oost::get_expectation_single_element_real(
 ///    x_min, x_max, x, &discrete_cf, 
 ///     |u_im, x, k|{
 ///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
 ///     }
-/// );*/
+/// );
 /// # }
 /// ```
 pub fn get_expectation_single_element_real<'a,  U>(
@@ -428,12 +429,12 @@ pub fn get_expectation_single_element_real<'a,  U>(
 /// let num_u=128;
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// /*let result=fang_oost::get_expectation_single_element_extended(
+/// let result=fang_oost::get_expectation_single_element_extended(
 ///     x_min, x_max, x, &discrete_cf, 
 ///     |u_im, x, k|{
 ///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
 ///     }
-/// );*/
+/// );
 /// # }
 /// ```
 pub fn get_expectation_single_element_extended<'a,  'b:'a, U>(
@@ -458,7 +459,10 @@ pub fn get_expectation_single_element_extended<'a,  'b:'a, U>(
 /// ```
 /// extern crate num_complex;
 /// extern crate fang_oost;
+/// extern crate rayon;
+/// use rayon::prelude::*;
 /// use num_complex::Complex;
+/// 
 /// # fn main() {  
 /// let num_x = 1024;
 /// let num_u = 256;
@@ -469,10 +473,9 @@ pub fn get_expectation_single_element_extended<'a,  'b:'a, U>(
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let density = fang_oost::get_density(
+/// let density:Vec<f64> = fang_oost::get_density(
 ///    x_min, x_max, x_domain, &discrete_cf
-/// );
-/// //can then call "collect" if a vector is desired
+/// ).collect();
 /// # }
 /// ```
 pub fn get_density<'a, 'b :'a, S>(
