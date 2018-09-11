@@ -115,7 +115,7 @@ Function for computation purposes.*/
 fn convolute_extended<T>(cf_incr:&Complex<f64>, x:f64, u_im:f64, u_index:usize, vk:T)->f64
     where T:Fn(f64, f64, usize)->f64
 {
-    (cf_incr*(u_im*x).exp()).re*vk(u_im, x, u_index) 
+    (cf_incr*(get_complex_u(u_im)*x).exp()).re*vk(u_im, x, u_index) 
 }
 /**TODO!!! Maybe the "u" be complex to begin with*/
 /*Convolution in standard Fourier space.  Should "u" be complex??*/
