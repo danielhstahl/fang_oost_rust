@@ -112,17 +112,17 @@ Levy processes where log(S/K) changes
 for every iteration.  This is done 
 separately from the Characteristic
 Function for computation purposes.*/
-fn convolute_extended<T>(cf_incr:&Complex<f64>, x:f64, u:&Complex<f64>, u_index:usize, vk:T)->f64
-    where T:Fn(&Complex<f64>, f64, usize)->f64
+fn convolute_extended<T>(cf_incr:&Complex<f64>, x:f64, u_im:f64, u_index:usize, vk:T)->f64
+    where T:Fn(f64, f64, usize)->f64
 {
-    (cf_incr*(u*x).exp()).re*vk(u, x, u_index) 
+    (cf_incr*(u_im*x).exp()).re*vk(u_im, x, u_index) 
 }
 /**TODO!!! Maybe the "u" be complex to begin with*/
 /*Convolution in standard Fourier space.  Should "u" be complex??*/
-fn convolute_real<T>(cf_incr:&Complex<f64>, x:f64, u:&Complex<f64>, u_index:usize, vk:T)->f64
-    where T:Fn(&Complex<f64>, f64, usize)->f64
+fn convolute_real<T>(cf_incr:&Complex<f64>, x:f64, u_im:f64, u_index:usize, vk:T)->f64
+    where T:Fn(f64, f64, usize)->f64
 {
-    cf_incr.re*vk(u, x, u_index)
+    cf_incr.re*vk(u_im, x, u_index)
 }
 
 
@@ -132,18 +132,18 @@ fn adjust_index(index:usize)->f64
 }
 fn integrate_cf<S>(
     discrete_cf_adjusted:&[Complex<f64>], 
-    x_min:f64,
-    x_max:f64,
+    du:f64,
     x:f64,
     convolute:S //this is somewhat expensive for extended but it was recomputed each time for previous version as well.  I don't think this is the cause of the slowdown
 )->f64
-    where S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
+    where S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    get_u_domain(discrete_cf_adjusted.len(), x_min, x_max)
-        .zip(discrete_cf_adjusted)
+    discrete_cf_adjusted
+        .iter()
         .enumerate()
-        .map(|(index, (u, cf_incr))|{
-            convolute(&(cf_incr*adjust_index(index)), x, &u, index)
+        .map(|(index, &cf_incr)|{
+            let adjusted_cf_incr=cf_incr*adjust_index(index);
+            convolute(&adjusted_cf_incr, x, get_u(du, index), index)
         }).sum()
 }
 
@@ -207,14 +207,14 @@ fn get_expectation_generic_single_element<S>(
     convolute:S
 )-> f64
     where 
-    S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
+    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
+    let du=compute_du(x_min, x_max);
     integrate_cf(
         &get_discrete_cf_adjusted(
             x_min, x_max, fn_inv_vec
         ), 
-        x_min, 
-        x_max,
+        du,
         x, &convolute
     )
 }
@@ -233,17 +233,17 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
     convolute:S
 )->impl IndexedParallelIterator<Item = f64>+'a+std::marker::Sync+std::marker::Send+'a
     where 
-    S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send+'a,
+    S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a,
     T: IndexedParallelIterator<Item = f64>+std::marker::Sync+std::marker::Send+'a
 {
+    let du=compute_du(x_min, x_max);
     let discrete_cf_adjusted=get_discrete_cf_adjusted(
         x_min, x_max, fn_inv_vec
     );
     x_domain_iterator.map(move |x|{
         integrate_cf(
             &discrete_cf_adjusted,
-            x_min,
-            x_max, 
+            du, 
             x, &convolute
         )
     })
@@ -276,8 +276,8 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
 ///     x_max, 
 ///     x_domain,
 ///     &cf_discrete, 
-///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
+///     |u_im, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im}
 ///     }
 /// );
 /// //can then call "collect" if a vector is desired
@@ -292,7 +292,7 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 )->impl IndexedParallelIterator<Item = f64>+'a
     where 
     S: IndexedParallelIterator<Item = f64>+std::marker::Sync+'b,
-    U:Fn(&Complex<f64>, f64, usize)->f64+std::marker::Sync+std::marker::Send+'b
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'b
 {
     get_expectation_generic(
         x_min,
@@ -333,8 +333,8 @@ pub fn get_expectation_real<'a, 'b:'a, S, U>(
 ///     x_max, 
 ///     x_domain,
 ///     &discrete_cf, 
-///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
+///     |u_im, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
 ///     }
 /// );
 /// //can then call "collect" if a vector is desired
@@ -349,7 +349,7 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
 )->impl IndexedParallelIterator<Item = f64>+'a
     where 
     S: IndexedParallelIterator<Item = f64>+std::marker::Sync+'b,
-    U:Fn(&Complex<f64>, f64, usize)->f64+std::marker::Sync+std::marker::Send+'b
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'b
 {
     get_expectation_generic(
         x_min,
@@ -382,8 +382,8 @@ pub fn get_expectation_extended<'a, 'b:'a, S, U>(
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
 /// /*let result=fang_oost::get_expectation_single_element_real(
 ///    x_min, x_max, x, &discrete_cf, 
-///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
+///     |u_im, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
 ///     }
 /// );*/
 /// # }
@@ -396,7 +396,7 @@ pub fn get_expectation_single_element_real<'a,  U>(
     vk:U
 )->f64
     where 
-    U:Fn(&Complex<f64>, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
 {
     get_expectation_generic_single_element(
         x_min, x_max, x, 
@@ -430,8 +430,8 @@ pub fn get_expectation_single_element_real<'a,  U>(
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
 /// /*let result=fang_oost::get_expectation_single_element_extended(
 ///     x_min, x_max, x, &discrete_cf, 
-///     |u, x, k|{
-///         if k==0{x-x_min} else { ((x-x_min)*u.im).sin()/u.im }
+///     |u_im, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
 ///     }
 /// );*/
 /// # }
@@ -444,7 +444,7 @@ pub fn get_expectation_single_element_extended<'a,  'b:'a, U>(
     vk:U
 )->f64
     where 
-    U:Fn(&Complex<f64>, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
+    U:Fn(f64, f64, usize)->f64+std::marker::Sync+std::marker::Send+'a
 {
     get_expectation_generic_single_element(
         x_min, x_max, x, 
@@ -487,7 +487,7 @@ where
     get_expectation_real(
         x_min, x_max, 
         x_domain_iterator, fn_inv_vec, 
-        move |u, x, _|(u.im*(x-x_min)).cos()
+        move |u, x, _|(u*(x-x_min)).cos()
     )
 }
 
@@ -552,7 +552,7 @@ mod tests {
             x_min, x_max, 
             x_domain, &discrete_cf, 
             |u, x, k|{
-                vk_cdf(u.im, x, x_min, k)
+                vk_cdf(u, x, x_min, k)
             }
         ).collect();
         for (index, x) in ref_normal.iter().enumerate(){
@@ -574,7 +574,7 @@ mod tests {
             x_min, x_max, 2.0, 
             &discrete_cf, 
             |u, x, k|{
-                vk_cdf(u.im, x, x_min, k)
+                vk_cdf(u, x, x_min, k)
             }
         );
         assert_abs_diff_eq!(0.5, result, epsilon=0.001);
