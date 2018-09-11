@@ -131,13 +131,13 @@ fn adjust_index(index:usize)->f64
     if index==0{0.5} else {1.0}
 }
 fn integrate_cf<S>(
-    cf_iterator:impl IndexedParallelIterator<Item = (Complex<f64>, Complex<f64>) >, 
+    discrete_cf_adjusted:&[(Complex<f64>, Complex<f64>)], 
     x:f64,
-    convolute:S
+    convolute:S //this is somewhat expensive for extended but it was recomputed each time for previous version as well.  I don't think this is the cause of the slowdown
 )->f64
     where S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    cf_iterator.enumerate().map(|(index, (cf_incr, u))|{
+    discrete_cf_adjusted.par_iter().enumerate().map(|(index, (cf_incr, u))|{
         convolute(&(cf_incr*adjust_index(index)), x, &u, index)
     }).sum()
 }
@@ -151,20 +151,20 @@ fn adjust_cf(
     (fn_inv_increment*(-u*x_min).exp()*cp, u)
 }
 
-
-fn get_discrete_cf_iterator<'a, 'b:'a>(
+//cheaper to create a vector?  Lets try
+fn get_discrete_cf_adjusted(
     x_min:f64,
     x_max:f64,
-    fn_inv_vec:&'b [Complex<f64>]
-)->impl IndexedParallelIterator<Item = (Complex<f64>, Complex<f64>)>+std::marker::Sync+std::marker::Send+'a
+    fn_inv_vec:&[Complex<f64>]
+)->Vec<(Complex<f64>, Complex<f64>)>
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
-    get_u_domain(fn_inv_vec.len(), x_min, x_max)
+    get_u_domain(fn_inv_vec.len(), x_min, x_max) //do I need the u domain?
         .zip(fn_inv_vec)
         .map(move |(u, fn_inv_element)|{
             adjust_cf(&fn_inv_element, u, x_min, cp)
-        })
+        }).collect()
 }
 /// Returns "raw" discrete cf
 /// 
@@ -205,7 +205,7 @@ fn get_expectation_generic_single_element<S>(
     S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
 {
     integrate_cf(
-        get_discrete_cf_iterator(
+        &get_discrete_cf_adjusted(
             x_min, x_max, fn_inv_vec
         ), 
         x, &convolute
@@ -229,16 +229,13 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
     S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send+'a,
     T: IndexedParallelIterator<Item = f64>+std::marker::Sync+std::marker::Send+'a
 {
-    //for every x, integrate over discrete cf
-    //NOTE that I create a new iterator for every x
-    //this MAY be expensive (I'm not sure)
+    let discrete_cf_adjusted=get_discrete_cf_adjusted(
+        x_min, x_max, fn_inv_vec
+    );
     x_domain_iterator.map(move |x|{
-        get_expectation_generic_single_element(
-            x_min,
-            x_max, 
-            x, 
-            fn_inv_vec,
-            &convolute
+        integrate_cf(
+            &discrete_cf_adjusted, 
+            x, &convolute
         )
     })
 }
