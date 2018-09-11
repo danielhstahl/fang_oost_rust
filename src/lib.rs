@@ -131,15 +131,20 @@ fn adjust_index(index:usize)->f64
     if index==0{0.5} else {1.0}
 }
 fn integrate_cf<S>(
-    discrete_cf_adjusted:&[(Complex<f64>, Complex<f64>)], 
+    discrete_cf_adjusted:&[Complex<f64>], 
+    x_min:f64,
+    x_max:f64,
     x:f64,
     convolute:S //this is somewhat expensive for extended but it was recomputed each time for previous version as well.  I don't think this is the cause of the slowdown
 )->f64
     where S:Fn(&Complex<f64>, f64, &Complex<f64>, usize)->f64+std::marker::Sync+std::marker::Send
 {
-    discrete_cf_adjusted.par_iter().enumerate().map(|(index, (cf_incr, u))|{
-        convolute(&(cf_incr*adjust_index(index)), x, &u, index)
-    }).sum()
+    get_u_domain(discrete_cf_adjusted.len(), x_min, x_max)
+        .zip(discrete_cf_adjusted)
+        .enumerate()
+        .map(|(index, (u, cf_incr))|{
+            convolute(&(cf_incr*adjust_index(index)), x, &u, index)
+        }).sum()
 }
 
 fn adjust_cf(
@@ -147,8 +152,8 @@ fn adjust_cf(
     u:Complex<f64>,
     x_min:f64,
     cp:f64
-)->(Complex<f64>, Complex<f64>){
-    (fn_inv_increment*(-u*x_min).exp()*cp, u)
+)->Complex<f64>{
+    fn_inv_increment*(-u*x_min).exp()*cp
 }
 
 //cheaper to create a vector?  Lets try
@@ -156,7 +161,7 @@ fn get_discrete_cf_adjusted(
     x_min:f64,
     x_max:f64,
     fn_inv_vec:&[Complex<f64>]
-)->Vec<(Complex<f64>, Complex<f64>)>
+)->Vec<Complex<f64>>
 {
     let du=compute_du(x_min, x_max);
     let cp=compute_cp(du);
@@ -208,6 +213,8 @@ fn get_expectation_generic_single_element<S>(
         &get_discrete_cf_adjusted(
             x_min, x_max, fn_inv_vec
         ), 
+        x_min, 
+        x_max,
         x, &convolute
     )
 }
@@ -234,7 +241,9 @@ fn get_expectation_generic<'a, 'b:'a, S, T>(
     );
     x_domain_iterator.map(move |x|{
         integrate_cf(
-            &discrete_cf_adjusted, 
+            &discrete_cf_adjusted,
+            x_min,
+            x_max, 
             x, &convolute
         )
     })
