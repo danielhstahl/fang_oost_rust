@@ -7,8 +7,6 @@ pool:
   vmImage: 'Ubuntu 16.04'
 
 steps:
-- script: curl https://sh.rustup.rs -sSf | sh
-  displayName: 'install rust'
 
 - script: |
     export PATH="~/.cargo/bin:$PATH"
