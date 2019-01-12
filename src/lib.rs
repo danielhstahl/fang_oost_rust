@@ -117,8 +117,7 @@ fn convolute_extended<T>(cf_incr:&Complex<f64>, x:f64, u_im:f64, u_index:usize, 
 {
     (cf_incr*(get_complex_u(u_im)*x).exp()).re*vk(u_im, x, u_index) 
 }
-/**TODO!!! Maybe the "u" be complex to begin with*/
-/*Convolution in standard Fourier space.  Should "u" be complex??*/
+/*Convolution in standard Fourier space*/
 fn convolute_real<T>(cf_incr:&Complex<f64>, x:f64, u_im:f64, u_index:usize, vk:T)->f64
     where T:Fn(f64, f64, usize)->f64
 {
@@ -134,7 +133,7 @@ fn integrate_cf<S>(
     discrete_cf_adjusted:&[Complex<f64>], 
     du:f64,
     x:f64,
-    convolute:S //this is somewhat expensive for extended but it was recomputed each time for previous version as well.  I don't think this is the cause of the slowdown
+    convolute:S //this can be expensive for extended cf
 )->f64
     where S:Fn(&Complex<f64>, f64, f64, usize)->f64+std::marker::Sync+std::marker::Send
 {
