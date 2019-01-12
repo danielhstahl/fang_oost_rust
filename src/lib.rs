@@ -220,10 +220,7 @@ fn get_expectation_generic_single_element<S>(
 
 /**All generic functions will be provided iterators over x 
  * and iterators over RAW characteristic function. 
- * NOTE! I'm still waffling over whether to provide the 
- * RAW as an iterator or a vector. 
- * Could come
- * from a vector that is iterated over*/
+ */
 fn get_expectation_generic<'a, 'b:'a, S, T>(
     x_min:f64,
     x_max:f64,
