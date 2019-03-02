@@ -3,14 +3,6 @@
 //! [cf_functions](https://crates.io/crates/cf_functions) repository.
 //! [Link to Fang-Oosterlee paper](http://ta.twi.tudelft.nl/mf/users/oosterle/oosterlee/COS.pdf).
 //! 
-extern crate num;
-extern crate num_complex;
-extern crate rayon;
-#[macro_use]
-#[cfg(test)]
-extern crate approx;
-#[cfg(test)]
-extern crate statrs;
 
 use num_complex::Complex;
 use std::f64::consts::PI;
@@ -493,6 +485,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::*;
     fn vk_cdf(
         u:f64, x:f64, a:f64, k:usize
     )->f64{
