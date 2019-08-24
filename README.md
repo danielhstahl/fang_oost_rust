@@ -9,9 +9,9 @@
 
 # Fang-Oosterlee Library for Rust
 
-Implements [Fang-Oosterlee](https://mpra.ub.uni-muenchen.de/8914/4/MPRA_paper_8914.pdf) algorithm in Rust.  While the algorithm originally was used for option pricing, it can be used for a variety of use cases.  For example, it can be used to compute the Value at Risk of a distribution, the density of a distribution, and the partial expectation.  
+Implements [Fang-Oosterlee](https://mpra.ub.uni-muenchen.de/8914/4/MPRA_paper_8914.pdf) algorithm in Rust.  While the algorithm originally was used for option pricing, it can be used for a variety of use cases.  For example, it can be used to compute the Value at Risk of a distribution, the density of a distribution, and the partial expectation.
 
-It requires a characteristic function computed at various specific intervals.  A utility function is provided which converts an analytical characteristic function into a vector. 
+It requires a characteristic function computed at various specific intervals.  A utility function is provided which converts an analytical characteristic function into a vector.
 
 Documentation is at [docs.rs](https://docs.rs/fang_oost/0.13.7/fang_oost/)
 
@@ -32,7 +32,7 @@ extern crate fang_oost;
 extern crate rayon;
 use rayon::prelude::*;
 use num_complex::Complex;
- 
+
 let num_x = 1024;
 let num_u = 256;
 let x_min = -20.0;
@@ -52,3 +52,7 @@ let density:Vec<f64> = fang_oost::get_density(
 
 * [Option Pricing with Fang Oost](https://crates.io/crates/fang_oost_option)
 * [Distribution Utilities (including CDF, VaR, and Expected Shortfall)](https://crates.io/crates/cf_dist_utils)
+
+## Benchmarks
+
+View benchmarks at https://phillyfan1138.github.io/fang_oost_rust/report.
