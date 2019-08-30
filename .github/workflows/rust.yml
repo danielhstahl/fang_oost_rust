@@ -41,7 +41,10 @@ jobs:
         
     - name: Deploy pages
       uses: JamesIves/github-pages-deploy-action@master
-      if: matrix.rust == 'stable' && $GITHUB_REF == 'master'
+      if: matrix.rust == 'stable' 
+      on: 
+        branches:
+          - master
       env: 
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         BRANCH: gh-pages
