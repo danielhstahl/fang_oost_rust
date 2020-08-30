@@ -21,7 +21,7 @@ fn compute_dx(x_discrete: usize, x_min: f64, x_max: f64) -> f64 {
 /// Function to compute the discrete U. The operation is cheap
 /// and takes less ram than simply using the computeURange
 /// function to create a vector.  Note that "uMin" is always
-/// zero and hence is unecessary.  This can (should?) be
+/// zero and hence is unnecessary.  This can (should?) be
 /// simply an implementation of a generic "getNode" function
 /// but is broken into two functions to make it explicit and be
 /// more closely aligned with the Fang Oosterlee paper.
@@ -81,25 +81,28 @@ fn get_complex_u(u: f64) -> Complex<f64> {
 }
 
 /// Helper function to get complex u domain
-///
+/// @num_u the number of discrete steps in complex space
+/// @x_min the minimum value of the truncated x domain
+/// @x_max the maximum value of the truncated x domain
+/// @return discrete complex values spanning the complex space
 /// # Examples
 /// ```
-/// let u_discrete = 10;
+/// let num_u = 10;
 /// let x_min = -20.0;
 /// let x_max = 20.0;
 /// let u_domain=fang_oost::get_u_domain(
-///     u_discrete,
+///     num_u,
 ///     x_min,
 ///     x_max
 /// );
 /// ```
 pub fn get_u_domain(
-    u_discrete: usize,
+    num_u: usize,
     x_min: f64,
     x_max: f64,
 ) -> impl IndexedParallelIterator<Item = Complex<f64>> {
     let du = compute_du(x_min, x_max);
-    (0..u_discrete)
+    (0..num_u)
         .into_par_iter()
         .map(move |index| get_complex_u(get_u(du, index)))
 }
@@ -171,7 +174,10 @@ fn get_discrete_cf_adjusted(
         .collect()
 }
 /// Returns "raw" discrete cf
-///
+/// @num_u the number of discrete steps in complex space
+/// @x_min the minimum value of the truncated x domain
+/// @x_max the maximum value of the truncated x domain
+/// @cf_fn characteristic function
 /// # Examples
 /// ```
 /// extern crate num_complex;
