@@ -1,6 +1,6 @@
 [package]
 name = "fang_oost"
-version = "0.14.1"
+version = "0.14.2"
 authors = ["Daniel Stahl <danstahl1138@gmail.com>"]
 homepage = "https://github.com/phillyfan1138/fang_oost_rust"
 repository = "https://github.com/phillyfan1138/fang_oost_rust"
@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 num = "0.2"
-rayon = "1.0.1"
+rayon = "1.5"
 num-complex = "0.2"
 
 [dev-dependencies]
