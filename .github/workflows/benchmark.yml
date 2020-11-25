@@ -8,4 +8,4 @@ jobs:
       - uses: actions/checkout@master
       - uses: jasonwilliams/criterion-compare-action@move_to_actions
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.ACCESS_TOKEN }}

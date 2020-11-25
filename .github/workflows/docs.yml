@@ -16,6 +16,6 @@ jobs:
     - name: Deploy pages
       uses: JamesIves/github-pages-deploy-action@master
       env: 
-        ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         BRANCH: gh-pages
         FOLDER: target/criterion
