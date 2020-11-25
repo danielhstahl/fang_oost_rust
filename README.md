@@ -55,4 +55,4 @@ let density:Vec<f64> = fang_oost::get_density(
 
 ## Benchmarks
 
-View benchmarks at https://phillyfan1138.github.io/fang_oost_rust/report/index.html.
+View benchmarks at https://danielhstahl.github.io/fang_oost_rust/report/index.html.
