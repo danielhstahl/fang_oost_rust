@@ -272,7 +272,7 @@ where
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let cf_discrete=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result:Vec<f64>=fang_oost::get_expectation_real(
+/// let result:Vec<fang_oost::GraphElement>=fang_oost::get_expectation_real(
 ///     x_min,
 ///     x_max,
 ///     x_domain,
@@ -331,7 +331,7 @@ where
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result:Vec<f64>=fang_oost::get_expectation_extended(
+/// let result:Vec<fang_oost::GraphElement>=fang_oost::get_expectation_extended(
 ///     x_min,
 ///     x_max,
 ///     x_domain,
