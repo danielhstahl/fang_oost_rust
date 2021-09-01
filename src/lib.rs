@@ -249,6 +249,29 @@ where
     })
 }
 
+/**All generic functions will be provided iterators over x
+ * and iterators over RAW characteristic function.
+ * Use this when you only want to use the inverse CF once.
+ */
+fn get_expectation_generic_move<'a, S, T>(
+    x_min: f64,
+    x_max: f64,
+    x_domain_iterator: T,
+    fn_inv_vec: Vec<Complex<f64>>,
+    convolute: S,
+) -> impl IndexedParallelIterator<Item = GraphElement> + 'a + std::marker::Sync + std::marker::Send + 'a
+where
+    S: Fn(&Complex<f64>, f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'a,
+    T: IndexedParallelIterator<Item = f64> + std::marker::Sync + std::marker::Send + 'a,
+{
+    let du = compute_du(x_min, x_max);
+    let discrete_cf_adjusted = get_discrete_cf_adjusted(x_min, x_max, &fn_inv_vec);
+    x_domain_iterator.map(move |x| GraphElement {
+        x,
+        value: integrate_cf(&discrete_cf_adjusted, du, x, &convolute),
+    })
+}
+
 /// Returns expectation over equal mesh in the real domain
 ///
 /// # Remarks
@@ -295,6 +318,65 @@ where
     U: Fn(f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'b,
 {
     get_expectation_generic(
+        x_min,
+        x_max,
+        x_domain_iterator,
+        discrete_cf,
+        move |cf, x, u, i| convolute_real(cf, x, u, i, &vk),
+    )
+}
+
+/// Returns expectation over equal mesh in the real domain
+/// and consumes the discrete_cf vector.  Useful when only
+/// need to use the discrete_cf once.
+///
+/// # Remarks
+///
+/// The "type" of the expectation is handled by the vk function.
+/// By "moving" the discrete_cf vector we don't have to "collect"
+/// the results until later, potentially making consumption
+/// of this module more efficient.
+///
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// extern crate fang_oost;
+/// use num_complex::Complex;
+/// extern crate rayon;
+/// use rayon::prelude::*;
+/// # fn main() {
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let num_x = 1024;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let cf_discrete=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+/// let result:Vec<fang_oost::GraphElement>=fang_oost::get_expectation_real_move(
+///     x_min,
+///     x_max,
+///     x_domain,
+///     cf_discrete,
+///     |u_im, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im}
+///     }
+/// ).collect();
+/// # }
+/// ```
+pub fn get_expectation_real_move<'a, 'b: 'a, S, U>(
+    x_min: f64,
+    x_max: f64,
+    x_domain_iterator: S,
+    discrete_cf: Vec<Complex<f64>>,
+    vk: U,
+) -> impl IndexedParallelIterator<Item = GraphElement> + 'a
+where
+    S: IndexedParallelIterator<Item = f64> + std::marker::Sync + 'b,
+    U: Fn(f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'b,
+{
+    get_expectation_generic_move(
         x_min,
         x_max,
         x_domain_iterator,
@@ -354,6 +436,68 @@ where
     U: Fn(f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'b,
 {
     get_expectation_generic(
+        x_min,
+        x_max,
+        x_domain_iterator,
+        discrete_cf,
+        move |cf, x, u, i| convolute_extended(cf, x, u, i, &vk),
+    )
+}
+
+/// Returns expectation over equal mesh in the real domain
+/// where characteristic function depends on initial starting point
+/// of a Levy process and consumes the discrete_cf vector.  Useful
+/// when only need to use the discrete_cf once.
+///
+/// # Remarks
+///
+/// The "type" of the expectation is handled by the vk function.
+/// This function is useful for Levy functions since the characteristic function
+/// depends on the initial value of x.  See [fang_oost_option](https://docs.rs/crate/fang_oost_option/0.21.3/source/src/option_pricing.rs)
+/// for an example.  By "moving" the discrete_cf vector we don't have to
+/// "collect" the results until later, potentially making consumption of this
+/// module more efficient.
+///
+/// # Examples
+/// ```
+/// extern crate num_complex;
+/// extern crate fang_oost;
+/// use num_complex::Complex;
+/// extern crate rayon;
+/// use rayon::prelude::*;
+/// # fn main() {
+/// let mu = 2.0;
+/// let sigma:f64 = 5.0;
+/// let num_u = 256;
+/// let num_x = 1024;
+/// let x_min = -20.0;
+/// let x_max = 25.0;
+/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
+/// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
+/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+/// let result:Vec<fang_oost::GraphElement>=fang_oost::get_expectation_extended_move(
+///     x_min,
+///     x_max,
+///     x_domain,
+///     discrete_cf,
+///     |u_im, x, k|{
+///         if k==0{x-x_min} else { ((x-x_min)*u_im).sin()/u_im }
+///     }
+/// ).collect();
+/// # }
+/// ```
+pub fn get_expectation_extended_move<'a, 'b: 'a, S, U>(
+    x_min: f64,
+    x_max: f64,
+    x_domain_iterator: S,
+    discrete_cf: Vec<Complex<f64>>,
+    vk: U,
+) -> impl IndexedParallelIterator<Item = GraphElement> + 'a
+where
+    S: IndexedParallelIterator<Item = f64> + std::marker::Sync + 'b,
+    U: Fn(f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'b,
+{
+    get_expectation_generic_move(
         x_min,
         x_max,
         x_domain_iterator,
@@ -524,6 +668,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_cdf_move() {
+        let mu = 2.0;
+        let sigma: f64 = 5.0;
+
+        let num_x = 55;
+        let num_u = 256;
+        let x_min = -20.0;
+        let x_max = 25.0;
+        let norm_cf = |u: &Complex<f64>| (u * mu + 0.5 * u * u * sigma * sigma).exp();
+        let x_domain = get_x_domain(num_x, x_min, x_max);
+        let ref_normal: Vec<f64> = get_x_domain(num_x, x_min, x_max)
+            .map(|x| 0.5 * statrs::function::erf::erfc(-((x - mu) / sigma) / (2.0 as f64).sqrt()))
+            .collect();
+
+        let discrete_cf = get_discrete_cf(num_u, x_min, x_max, &norm_cf);
+        let result: Vec<GraphElement> =
+            get_expectation_real_move(x_min, x_max, x_domain, discrete_cf, |u, x, k| {
+                vk_cdf(u, x, x_min, k)
+            })
+            .collect();
+        for (reference, estimate) in ref_normal.iter().zip(result) {
+            assert_abs_diff_eq!(*reference, estimate.value, epsilon = 0.001);
+        }
+    }
     #[test]
     fn test_expectation() {
         let mu = 2.0;

@@ -20,10 +20,9 @@ jobs:
         folder: target/criterion
     - name: Document 
       run: cargo doc
-    - uses: hecrj/setup-rust-action@master
-      with:
-        rust-version: stable
+    #- uses: hecrj/setup-rust-action@master
+    #  with:
+    #    rust-version: stable
     - name: Publish
       run: |
-        cargo bench
         cargo publish --token ${{ secrets.CARGO_TOKEN }} --allow-dirty || true
