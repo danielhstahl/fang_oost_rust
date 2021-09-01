@@ -7,6 +7,12 @@
 use num_complex::Complex;
 use rayon::prelude::*;
 use std::f64::consts::PI;
+
+pub struct GraphElement {
+    pub x: f64,
+    pub value: f64,
+}
+
 /**
     Function to compute the difference in successive X nodes.  This can feed into the "getX" function.
     @xDiscrete number of sections to parse the X domain into
@@ -230,14 +236,17 @@ fn get_expectation_generic<'a, 'b: 'a, S, T>(
     x_domain_iterator: T,
     fn_inv_vec: &'b [Complex<f64>],
     convolute: S,
-) -> impl IndexedParallelIterator<Item = f64> + 'a + std::marker::Sync + std::marker::Send + 'a
+) -> impl IndexedParallelIterator<Item = GraphElement> + 'a + std::marker::Sync + std::marker::Send + 'a
 where
     S: Fn(&Complex<f64>, f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'a,
     T: IndexedParallelIterator<Item = f64> + std::marker::Sync + std::marker::Send + 'a,
 {
     let du = compute_du(x_min, x_max);
     let discrete_cf_adjusted = get_discrete_cf_adjusted(x_min, x_max, fn_inv_vec);
-    x_domain_iterator.map(move |x| integrate_cf(&discrete_cf_adjusted, du, x, &convolute))
+    x_domain_iterator.map(move |x| GraphElement {
+        x,
+        value: integrate_cf(&discrete_cf_adjusted, du, x, &convolute),
+    })
 }
 
 /// Returns expectation over equal mesh in the real domain
@@ -263,7 +272,7 @@ where
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let cf_discrete=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result:Vec<f64>=fang_oost::get_expectation_real(
+/// let result:Vec<fang_oost::GraphElement>=fang_oost::get_expectation_real(
 ///     x_min,
 ///     x_max,
 ///     x_domain,
@@ -280,7 +289,7 @@ pub fn get_expectation_real<'a, 'b: 'a, S, U>(
     x_domain_iterator: S,
     discrete_cf: &'b [Complex<f64>],
     vk: U,
-) -> impl IndexedParallelIterator<Item = f64> + 'a
+) -> impl IndexedParallelIterator<Item = GraphElement> + 'a
 where
     S: IndexedParallelIterator<Item = f64> + std::marker::Sync + 'b,
     U: Fn(f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'b,
@@ -293,6 +302,7 @@ where
         move |cf, x, u, i| convolute_real(cf, x, u, i, &vk),
     )
 }
+
 /// Returns expectation over equal mesh in the real domain
 /// where characteristic function depends on initial starting point
 /// of a Levy process.
@@ -321,7 +331,7 @@ where
 /// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
 /// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
 /// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let result:Vec<f64>=fang_oost::get_expectation_extended(
+/// let result:Vec<fang_oost::GraphElement>=fang_oost::get_expectation_extended(
 ///     x_min,
 ///     x_max,
 ///     x_domain,
@@ -338,7 +348,7 @@ pub fn get_expectation_extended<'a, 'b: 'a, S, U>(
     x_domain_iterator: S,
     discrete_cf: &'b [Complex<f64>],
     vk: U,
-) -> impl IndexedParallelIterator<Item = f64> + 'a
+) -> impl IndexedParallelIterator<Item = GraphElement> + 'a
 where
     S: IndexedParallelIterator<Item = f64> + std::marker::Sync + 'b,
     U: Fn(f64, f64, usize) -> f64 + std::marker::Sync + std::marker::Send + 'b,
@@ -440,48 +450,6 @@ where
         convolute_extended(cf, x, u, i, &vk)
     })
 }
-/// Returns iterator over density with domain created by the function
-///
-/// # Examples
-/// ```
-/// extern crate num_complex;
-/// extern crate fang_oost;
-/// extern crate rayon;
-/// use rayon::prelude::*;
-/// use num_complex::Complex;
-///
-/// # fn main() {
-/// let num_x = 1024;
-/// let num_u = 256;
-/// let x_min = -20.0;
-/// let x_max = 25.0;
-/// let mu=2.0;
-/// let sigma:f64=5.0;
-/// let norm_cf = |u:&Complex<f64>|(u*mu+0.5*u*u*sigma*sigma).exp();
-/// let x_domain=fang_oost::get_x_domain(num_x, x_min, x_max);
-/// let discrete_cf=fang_oost::get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-/// let density:Vec<f64> = fang_oost::get_density(
-///    x_min, x_max, x_domain, &discrete_cf
-/// ).collect();
-/// # }
-/// ```
-pub fn get_density<'a, 'b: 'a, S>(
-    x_min: f64,
-    x_max: f64,
-    x_domain_iterator: S,
-    fn_inv_vec: &'b [Complex<f64>],
-) -> impl IndexedParallelIterator<Item = f64> + 'a
-where
-    S: IndexedParallelIterator<Item = f64> + std::marker::Sync + 'b,
-{
-    get_expectation_real(
-        x_min,
-        x_max,
-        x_domain_iterator,
-        fn_inv_vec,
-        move |u, x, _| (u * (x - x_min)).cos(),
-    )
-}
 
 #[cfg(test)]
 mod tests {
@@ -518,10 +486,15 @@ mod tests {
             })
             .collect();
         let discrete_cf = get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-        let my_inverse: Vec<f64> = get_density(x_min, x_max, my_x_domain, &discrete_cf).collect();
+        let my_inverse: Vec<GraphElement> =
+            get_expectation_real(x_min, x_max, my_x_domain, &discrete_cf, move |u, x, _| {
+                (u * (x - x_min)).cos()
+            })
+            .collect();
+        //let my_inverse: Vec<f64> = get_density(x_min, x_max, my_x_domain, &discrete_cf).collect();
 
         for (reference, estimate) in ref_normal.iter().zip(my_inverse) {
-            assert_abs_diff_eq!(*reference, estimate, epsilon = 0.001);
+            assert_abs_diff_eq!(*reference, estimate.value, epsilon = 0.001);
         }
     }
 
@@ -541,13 +514,13 @@ mod tests {
             .collect();
 
         let discrete_cf = get_discrete_cf(num_u, x_min, x_max, &norm_cf);
-        let result: Vec<f64> =
+        let result: Vec<GraphElement> =
             get_expectation_real(x_min, x_max, x_domain, &discrete_cf, |u, x, k| {
                 vk_cdf(u, x, x_min, k)
             })
             .collect();
         for (reference, estimate) in ref_normal.iter().zip(result) {
-            assert_abs_diff_eq!(*reference, estimate, epsilon = 0.001);
+            assert_abs_diff_eq!(*reference, estimate.value, epsilon = 0.001);
         }
     }
 
